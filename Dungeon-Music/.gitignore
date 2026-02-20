@@ -1,0 +1,64 @@
+# ═══════════════════════════════════════
+# Python
+# ═══════════════════════════════════════
+__pycache__/
+*.py[cod]
+*$py.class
+*.pyo
+*.egg-info/
+*.egg
+dist/
+*.spec
+
+# ═══════════════════════════════════════
+# PyInstaller
+# ═══════════════════════════════════════
+build/
+DM-DungeonMusic.spec
+
+# ═══════════════════════════════════════
+# Arquivos de mídia do usuário
+# ═══════════════════════════════════════
+*.mp3
+*.wav
+*.ogg
+*.flac
+*.opus
+*.webm
+*.m4a
+*.jpg
+*.jpeg
+*.png
+*.bmp
+*.gif
+*.tiff
+*.webp
+# Manter o ícone do app
+!DM-dungeoun-music.ico
+!DM-dungeoun-music.png
+
+# ═══════════════════════════════════════
+# Dados locais / cache
+# ═══════════════════════════════════════
+regras.gdd
+
+# Logs de pip (arquivos sem extensão gerados por acidente)
+10.0.0
+2.5.0
+6.0.0
+
+# ═══════════════════════════════════════
+# IDE / Editor
+# ═══════════════════════════════════════
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# ═══════════════════════════════════════
+# OS
+# ═══════════════════════════════════════
+Thumbs.db
+Desktop.ini
+.DS_Store
