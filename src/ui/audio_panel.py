@@ -4,8 +4,9 @@ Painel de controle de áudio com suporte a múltiplas faixas simultâneas.
 Inclui timeline/seek para controle de posição da música.
 """
 
+import os
 import tkinter as tk
-from tkinter import ttk, filedialog, messagebox
+from tkinter import ttk, filedialog, messagebox, simpledialog
 from PIL import Image, ImageTk
 import io
 import queue
@@ -309,14 +310,22 @@ class TrackWidget(ttk.Frame):
 
 
 class AudioPanel(ttk.LabelFrame):
-    """Painel principal de controle de áudio."""
+    """Painel principal de controle de áudio com sessões."""
 
-    def __init__(self, parent, audio_manager: AudioManager):
+    def __init__(self, parent, audio_manager: AudioManager, audio_session_mgr=None):
         super().__init__(parent, text=" 🎵 Player de Áudio ", padding=10)
         self.audio_manager = audio_manager
+        self.audio_session_mgr = audio_session_mgr
         self.track_widgets: dict[int, TrackWidget] = {}
         self._metadata_queue: queue.Queue = queue.Queue()
+        self.current_session_name: str = ""
+        self._pending_track_data: list = []
+        self._pending_index: int = 0
+        self._batch_size: int = 25
+        self._search_text: str = ""
         self._build()
+        if self.audio_session_mgr:
+            self._refresh_sessions_list()
 
     def restore_tracks(self):
         """Restaura widgets para faixas já carregadas no manager."""
@@ -330,7 +339,27 @@ class AudioPanel(ttk.LabelFrame):
             self._start_metadata_loading(new_tracks)
 
     def _build(self):
-        # Toolbar
+        # ── Session Toolbar ──
+        session_frame = ttk.Frame(self)
+        session_frame.pack(fill="x", pady=(0, 5))
+
+        ttk.Label(session_frame, text="Sessão:").pack(side="left", padx=(0, 5))
+        self.session_var = tk.StringVar()
+        self.session_combo = ttk.Combobox(
+            session_frame, textvariable=self.session_var,
+            state="readonly", width=25
+        )
+        self.session_combo.pack(side="left", padx=2)
+        self.session_combo.bind("<<ComboboxSelected>>", self._on_session_selected)
+
+        ttk.Button(session_frame, text="➕ Nova",
+                   command=self._new_session).pack(side="left", padx=2)
+        ttk.Button(session_frame, text="📁 Importar Pasta",
+                   command=self._import_folder).pack(side="left", padx=2)
+        ttk.Button(session_frame, text="🗑 Excluir",
+                   command=self._delete_session).pack(side="left", padx=2)
+
+        # ── Action Toolbar ──
         toolbar = ttk.Frame(self)
         toolbar.pack(fill="x", pady=(0, 10))
 
@@ -346,6 +375,19 @@ class AudioPanel(ttk.LabelFrame):
                                   command=self._stop_all)
         stop_all_btn.pack(side="left", padx=2)
 
+        # Busca
+        ttk.Label(toolbar, text="🔍").pack(side="left", padx=(15, 2))
+        self.search_var = tk.StringVar()
+        self.search_var.trace_add("write", self._on_search_changed)
+        search_entry = ttk.Entry(toolbar, textvariable=self.search_var, width=20)
+        search_entry.pack(side="left", padx=2)
+
+        # Indicador de carregamento em lote
+        self._batch_loading_label = ttk.Label(
+            toolbar, text="", foreground=COLORS.get("text_muted", "gray")
+        )
+        self._batch_loading_label.pack(side="right", padx=5)
+
         # Container com scroll para as faixas
         self.canvas = tk.Canvas(self, highlightthickness=0, bg=COLORS["bg"])
         scrollbar = ttk.Scrollbar(self, orient="vertical", command=self.canvas.yview)
@@ -360,16 +402,206 @@ class AudioPanel(ttk.LabelFrame):
         self.canvas.pack(side="left", fill="both", expand=True)
         scrollbar.pack(side="right", fill="y")
 
+        # Mouse wheel scroll
+        self.canvas.bind("<Enter>",
+                         lambda e: self.canvas.bind_all("<MouseWheel>", self._on_mousewheel))
+        self.canvas.bind("<Leave>",
+                         lambda e: self.canvas.unbind_all("<MouseWheel>"))
+
         # Placeholder
         self.placeholder = ttk.Label(
             self.tracks_frame,
-            text="Nenhuma música adicionada.\n"
-                 "Clique em '➕ Adicionar Música' para começar.",
+            text="Crie ou selecione uma sessão para gerenciar músicas.",
             foreground="gray", justify="center", padding=30
         )
         self.placeholder.pack()
 
+    def _on_mousewheel(self, event):
+        self.canvas.yview_scroll(int(-1 * (event.delta / 120)), "units")
+
+    # ═══════════════════════════════════════
+    # Gerenciamento de Sessões
+    # ═══════════════════════════════════════
+
+    def _refresh_sessions_list(self):
+        """Atualiza a lista de sessões no combo."""
+        if not self.audio_session_mgr:
+            return
+        sessions = self.audio_session_mgr.list_sessions()
+        self.session_combo["values"] = sessions
+        if sessions and not self.session_var.get():
+            self.session_var.set(sessions[0])
+            self._load_session(sessions[0])
+
+    def _on_session_selected(self, _=None):
+        self.save_current_session()
+        name = self.session_var.get()
+        if name:
+            self._load_session(name)
+
+    def _new_session(self):
+        if not self.audio_session_mgr:
+            return
+        name = simpledialog.askstring("Nova Sessão", "Nome da sessão de áudio:",
+                                      parent=self)
+        if name:
+            self.save_current_session()
+            self.audio_session_mgr.create_session(name)
+            self._refresh_sessions_list()
+            self.session_var.set(name)
+            self._load_session(name)
+
+    def _import_folder(self):
+        if not self.audio_session_mgr:
+            return
+        folder = filedialog.askdirectory(title="Selecionar Pasta de Áudio")
+        if folder:
+            name = simpledialog.askstring(
+                "Nome da Sessão",
+                "Nome para a sessão importada:",
+                initialvalue=os.path.basename(folder),
+                parent=self
+            )
+            if name:
+                self.save_current_session()
+                session = self.audio_session_mgr.import_folder(folder, name)
+                if session:
+                    self._refresh_sessions_list()
+                    self.session_var.set(name)
+                    self._load_session(name)
+                else:
+                    messagebox.showwarning(
+                        "Aviso", "Nenhum arquivo de áudio encontrado na pasta."
+                    )
+
+    def _delete_session(self):
+        if not self.audio_session_mgr:
+            return
+        name = self.session_var.get()
+        if name:
+            if messagebox.askyesno("Confirmar", f"Excluir sessão '{name}'?"):
+                self._clear_all_tracks()
+                self.audio_session_mgr.delete_session(name)
+                self.current_session_name = ""
+                self.session_var.set("")
+                self._refresh_sessions_list()
+                self.placeholder.config(
+                    text="Crie ou selecione uma sessão para gerenciar músicas."
+                )
+                self.placeholder.pack()
+
+    def _load_session(self, name: str):
+        """Carrega uma sessão de áudio, criando widgets em lotes."""
+        if not self.audio_session_mgr:
+            return
+        self._clear_all_tracks()
+        self.current_session_name = name
+        session = self.audio_session_mgr.get_session(name)
+
+        if not session or not session.tracks:
+            self.placeholder.config(
+                text="Nenhuma música nesta sessão.\n"
+                     "Clique em '➕ Adicionar Música'."
+            )
+            self.placeholder.pack()
+            return
+
+        # Filtra arquivos válidos
+        valid = [t for t in session.tracks
+                 if os.path.isfile(t.get('file_path', ''))]
+        if not valid:
+            self.placeholder.config(text="Nenhum arquivo válido nesta sessão.")
+            self.placeholder.pack()
+            return
+
+        self.placeholder.pack_forget()
+        self._pending_track_data = valid
+        self._pending_index = 0
+        if len(valid) > self._batch_size:
+            self._batch_loading_label.config(
+                text=f"Carregando 0/{len(valid)}..."
+            )
+        self._load_next_batch()
+
+    def _load_next_batch(self):
+        """Cria widgets em lotes para manter a UI responsiva."""
+        start = self._pending_index
+        total = len(self._pending_track_data)
+        end = min(start + self._batch_size, total)
+
+        new_tracks = []
+        for i in range(start, end):
+            item = self._pending_track_data[i]
+            try:
+                track = self.audio_manager.add_track(item['file_path'])
+                track.set_volume(item.get('volume', 0.7))
+                widget = self._add_track_widget(track)
+                # Aplica filtro de busca
+                if self._search_text and self._search_text not in track.file_name.lower():
+                    widget.pack_forget()
+                if not track.metadata_loaded:
+                    new_tracks.append(track)
+            except Exception as e:
+                print(f"[DM] Erro ao carregar '{item.get('file_path', '')}': {e}")
+
+        self._pending_index = end
+        if new_tracks:
+            self._start_metadata_loading(new_tracks)
+
+        if self._pending_index < total:
+            self._batch_loading_label.config(
+                text=f"Carregando {end}/{total}..."
+            )
+            self.after(10, self._load_next_batch)
+        else:
+            self._batch_loading_label.config(text="")
+            self._pending_track_data = []
+
+    def _clear_all_tracks(self):
+        """Remove todas as faixas e widgets."""
+        for widget in self.track_widgets.values():
+            widget.destroy()
+        self.track_widgets.clear()
+        self.audio_manager.clear_all()
+
+    def save_current_session(self):
+        """Salva as faixas atuais na sessão corrente."""
+        if not self.current_session_name or not self.audio_session_mgr:
+            return
+        tracks_data = []
+        for track in self.audio_manager.tracks.values():
+            tracks_data.append({
+                "file_path": track.file_path,
+                "volume": track.volume
+            })
+        self.audio_session_mgr.save_session_tracks(
+            self.current_session_name, tracks_data
+        )
+
+    # ═══════════════════════════════════════
+    # Busca / Filtro
+    # ═══════════════════════════════════════
+
+    def _on_search_changed(self, *_args):
+        self._search_text = self.search_var.get().strip().lower()
+        self._apply_search_filter()
+
+    def _apply_search_filter(self):
+        """Mostra/esconde widgets baseado no filtro de busca."""
+        for tid, widget in self.track_widgets.items():
+            if not self._search_text or self._search_text in widget.track.file_name.lower():
+                widget.pack(fill="x", pady=2)
+            else:
+                widget.pack_forget()
+
+    # ═══════════════════════════════════════
+    # Operações de Faixas
+    # ═══════════════════════════════════════
+
     def _add_tracks(self):
+        if not self.current_session_name:
+            messagebox.showwarning("Aviso", "Selecione ou crie uma sessão primeiro.")
+            return
         files = filedialog.askopenfilenames(
             title="Selecionar Músicas",
             filetypes=[
@@ -392,6 +624,7 @@ class AudioPanel(ttk.LabelFrame):
                 messagebox.showerror("Erro", str(e))
         if new_tracks:
             self._start_metadata_loading(new_tracks)
+            self.save_current_session()
 
     def _start_metadata_loading(self, tracks: list[AudioTrack]):
         """Inicia carregamento de metadados em background."""
@@ -403,23 +636,20 @@ class AudioPanel(ttk.LabelFrame):
 
     def _poll_metadata(self):
         """Verifica se metadados ficaram prontas e atualiza widgets."""
-        updated = False
         try:
             while True:
                 track_id = self._metadata_queue.get_nowait()
                 if track_id in self.track_widgets:
                     self.track_widgets[track_id].refresh_metadata()
-                    updated = True
         except queue.Empty:
             pass
-        # Continua verificando enquanto houver faixas sem metadata
         pending = any(not t.metadata_loaded
                       for t in self.audio_manager.tracks.values()
                       if t.track_id in self.track_widgets)
         if pending:
             self.after(100, self._poll_metadata)
 
-    def _add_track_widget(self, track: AudioTrack):
+    def _add_track_widget(self, track: AudioTrack) -> TrackWidget:
         """Adiciona um widget de faixa à UI."""
         if self.placeholder.winfo_ismapped():
             self.placeholder.pack_forget()
@@ -427,6 +657,7 @@ class AudioPanel(ttk.LabelFrame):
         widget = TrackWidget(self.tracks_frame, track, on_remove=self._remove_track)
         widget.pack(fill="x", pady=2)
         self.track_widgets[track.track_id] = widget
+        return widget
 
     def _remove_track(self, track_id: int):
         """Remove uma faixa."""
@@ -437,6 +668,7 @@ class AudioPanel(ttk.LabelFrame):
 
         if not self.track_widgets:
             self.placeholder.pack()
+        self.save_current_session()
 
     def _pause_all(self):
         any_playing = any(t.is_playing and not t.is_paused
@@ -463,14 +695,22 @@ class AudioPanel(ttk.LabelFrame):
 
 
 class SfxPanel(ttk.LabelFrame):
-    """Painel de efeitos sonoros (mesma funcionalidade do AudioPanel, para organização)."""
+    """Painel de efeitos sonoros com sessões."""
 
-    def __init__(self, parent, audio_manager: AudioManager):
+    def __init__(self, parent, audio_manager: AudioManager, audio_session_mgr=None):
         super().__init__(parent, text=" 💥 Efeitos Sonoros ", padding=10)
         self.audio_manager = audio_manager
+        self.audio_session_mgr = audio_session_mgr
         self.track_widgets: dict[int, TrackWidget] = {}
         self._metadata_queue: queue.Queue = queue.Queue()
+        self.current_session_name: str = ""
+        self._pending_track_data: list = []
+        self._pending_index: int = 0
+        self._batch_size: int = 25
+        self._search_text: str = ""
         self._build()
+        if self.audio_session_mgr:
+            self._refresh_sessions_list()
 
     def restore_tracks(self):
         """Restaura widgets para faixas já carregadas no manager."""
@@ -484,6 +724,27 @@ class SfxPanel(ttk.LabelFrame):
             self._start_metadata_loading(new_tracks)
 
     def _build(self):
+        # ── Session Toolbar ──
+        session_frame = ttk.Frame(self)
+        session_frame.pack(fill="x", pady=(0, 5))
+
+        ttk.Label(session_frame, text="Sessão:").pack(side="left", padx=(0, 5))
+        self.session_var = tk.StringVar()
+        self.session_combo = ttk.Combobox(
+            session_frame, textvariable=self.session_var,
+            state="readonly", width=25
+        )
+        self.session_combo.pack(side="left", padx=2)
+        self.session_combo.bind("<<ComboboxSelected>>", self._on_session_selected)
+
+        ttk.Button(session_frame, text="➕ Nova",
+                   command=self._new_session).pack(side="left", padx=2)
+        ttk.Button(session_frame, text="📁 Importar Pasta",
+                   command=self._import_folder).pack(side="left", padx=2)
+        ttk.Button(session_frame, text="🗑 Excluir",
+                   command=self._delete_session).pack(side="left", padx=2)
+
+        # ── Action Toolbar ──
         toolbar = ttk.Frame(self)
         toolbar.pack(fill="x", pady=(0, 10))
 
@@ -499,6 +760,20 @@ class SfxPanel(ttk.LabelFrame):
                                   command=self._stop_all)
         stop_all_btn.pack(side="left", padx=2)
 
+        # Busca
+        ttk.Label(toolbar, text="🔍").pack(side="left", padx=(15, 2))
+        self.search_var = tk.StringVar()
+        self.search_var.trace_add("write", self._on_search_changed)
+        search_entry = ttk.Entry(toolbar, textvariable=self.search_var, width=20)
+        search_entry.pack(side="left", padx=2)
+
+        # Indicador de carregamento em lote
+        self._batch_loading_label = ttk.Label(
+            toolbar, text="", foreground=COLORS.get("text_muted", "gray")
+        )
+        self._batch_loading_label.pack(side="right", padx=5)
+
+        # Container com scroll
         self.canvas = tk.Canvas(self, highlightthickness=0, bg=COLORS["bg"])
         scrollbar = ttk.Scrollbar(self, orient="vertical", command=self.canvas.yview)
         self.tracks_frame = ttk.Frame(self.canvas)
@@ -512,17 +787,202 @@ class SfxPanel(ttk.LabelFrame):
         self.canvas.pack(side="left", fill="both", expand=True)
         scrollbar.pack(side="right", fill="y")
 
+        # Mouse wheel scroll
+        self.canvas.bind("<Enter>",
+                         lambda e: self.canvas.bind_all("<MouseWheel>", self._on_mousewheel))
+        self.canvas.bind("<Leave>",
+                         lambda e: self.canvas.unbind_all("<MouseWheel>"))
+
+        # Placeholder
         self.placeholder = ttk.Label(
             self.tracks_frame,
-            text="Nenhum efeito sonoro adicionado.\n"
-                 "Clique em '➕ Adicionar Efeito Sonoro' para começar.\n\n"
+            text="Crie ou selecione uma sessão para gerenciar efeitos sonoros.\n\n"
                  "Use esta aba para sons curtos como:\n"
                  "espadas, explosões, passos, portas, etc.",
             foreground="gray", justify="center", padding=30
         )
         self.placeholder.pack()
 
+    def _on_mousewheel(self, event):
+        self.canvas.yview_scroll(int(-1 * (event.delta / 120)), "units")
+
+    # ═══════════════════════════════════════
+    # Gerenciamento de Sessões
+    # ═══════════════════════════════════════
+
+    def _refresh_sessions_list(self):
+        if not self.audio_session_mgr:
+            return
+        sessions = self.audio_session_mgr.list_sessions()
+        self.session_combo["values"] = sessions
+        if sessions and not self.session_var.get():
+            self.session_var.set(sessions[0])
+            self._load_session(sessions[0])
+
+    def _on_session_selected(self, _=None):
+        self.save_current_session()
+        name = self.session_var.get()
+        if name:
+            self._load_session(name)
+
+    def _new_session(self):
+        if not self.audio_session_mgr:
+            return
+        name = simpledialog.askstring("Nova Sessão", "Nome da sessão de SFX:",
+                                      parent=self)
+        if name:
+            self.save_current_session()
+            self.audio_session_mgr.create_session(name)
+            self._refresh_sessions_list()
+            self.session_var.set(name)
+            self._load_session(name)
+
+    def _import_folder(self):
+        if not self.audio_session_mgr:
+            return
+        folder = filedialog.askdirectory(title="Selecionar Pasta de Efeitos Sonoros")
+        if folder:
+            name = simpledialog.askstring(
+                "Nome da Sessão",
+                "Nome para a sessão importada:",
+                initialvalue=os.path.basename(folder),
+                parent=self
+            )
+            if name:
+                self.save_current_session()
+                session = self.audio_session_mgr.import_folder(folder, name)
+                if session:
+                    self._refresh_sessions_list()
+                    self.session_var.set(name)
+                    self._load_session(name)
+                else:
+                    messagebox.showwarning(
+                        "Aviso", "Nenhum arquivo de áudio encontrado na pasta."
+                    )
+
+    def _delete_session(self):
+        if not self.audio_session_mgr:
+            return
+        name = self.session_var.get()
+        if name:
+            if messagebox.askyesno("Confirmar", f"Excluir sessão '{name}'?"):
+                self._clear_all_tracks()
+                self.audio_session_mgr.delete_session(name)
+                self.current_session_name = ""
+                self.session_var.set("")
+                self._refresh_sessions_list()
+                self.placeholder.config(
+                    text="Crie ou selecione uma sessão para gerenciar efeitos sonoros.\n\n"
+                         "Use esta aba para sons curtos como:\n"
+                         "espadas, explosões, passos, portas, etc."
+                )
+                self.placeholder.pack()
+
+    def _load_session(self, name: str):
+        if not self.audio_session_mgr:
+            return
+        self._clear_all_tracks()
+        self.current_session_name = name
+        session = self.audio_session_mgr.get_session(name)
+
+        if not session or not session.tracks:
+            self.placeholder.config(
+                text="Nenhum efeito sonoro nesta sessão.\n"
+                     "Clique em '➕ Adicionar Efeito Sonoro'."
+            )
+            self.placeholder.pack()
+            return
+
+        valid = [t for t in session.tracks
+                 if os.path.isfile(t.get('file_path', ''))]
+        if not valid:
+            self.placeholder.config(text="Nenhum arquivo válido nesta sessão.")
+            self.placeholder.pack()
+            return
+
+        self.placeholder.pack_forget()
+        self._pending_track_data = valid
+        self._pending_index = 0
+        if len(valid) > self._batch_size:
+            self._batch_loading_label.config(
+                text=f"Carregando 0/{len(valid)}..."
+            )
+        self._load_next_batch()
+
+    def _load_next_batch(self):
+        start = self._pending_index
+        total = len(self._pending_track_data)
+        end = min(start + self._batch_size, total)
+
+        new_tracks = []
+        for i in range(start, end):
+            item = self._pending_track_data[i]
+            try:
+                track = self.audio_manager.add_track(item['file_path'])
+                track.set_volume(item.get('volume', 0.7))
+                widget = self._add_track_widget(track)
+                if self._search_text and self._search_text not in track.file_name.lower():
+                    widget.pack_forget()
+                if not track.metadata_loaded:
+                    new_tracks.append(track)
+            except Exception as e:
+                print(f"[DM] Erro ao carregar '{item.get('file_path', '')}': {e}")
+
+        self._pending_index = end
+        if new_tracks:
+            self._start_metadata_loading(new_tracks)
+
+        if self._pending_index < total:
+            self._batch_loading_label.config(
+                text=f"Carregando {end}/{total}..."
+            )
+            self.after(10, self._load_next_batch)
+        else:
+            self._batch_loading_label.config(text="")
+            self._pending_track_data = []
+
+    def _clear_all_tracks(self):
+        for widget in self.track_widgets.values():
+            widget.destroy()
+        self.track_widgets.clear()
+        self.audio_manager.clear_all()
+
+    def save_current_session(self):
+        if not self.current_session_name or not self.audio_session_mgr:
+            return
+        tracks_data = []
+        for track in self.audio_manager.tracks.values():
+            tracks_data.append({
+                "file_path": track.file_path,
+                "volume": track.volume
+            })
+        self.audio_session_mgr.save_session_tracks(
+            self.current_session_name, tracks_data
+        )
+
+    # ═══════════════════════════════════════
+    # Busca / Filtro
+    # ═══════════════════════════════════════
+
+    def _on_search_changed(self, *_args):
+        self._search_text = self.search_var.get().strip().lower()
+        self._apply_search_filter()
+
+    def _apply_search_filter(self):
+        for tid, widget in self.track_widgets.items():
+            if not self._search_text or self._search_text in widget.track.file_name.lower():
+                widget.pack(fill="x", pady=2)
+            else:
+                widget.pack_forget()
+
+    # ═══════════════════════════════════════
+    # Operações de Faixas
+    # ═══════════════════════════════════════
+
     def _add_tracks(self):
+        if not self.current_session_name:
+            messagebox.showwarning("Aviso", "Selecione ou crie uma sessão primeiro.")
+            return
         files = filedialog.askopenfilenames(
             title="Selecionar Efeitos Sonoros",
             filetypes=[
@@ -545,9 +1005,9 @@ class SfxPanel(ttk.LabelFrame):
                 messagebox.showerror("Erro", str(e))
         if new_tracks:
             self._start_metadata_loading(new_tracks)
+            self.save_current_session()
 
     def _start_metadata_loading(self, tracks: list[AudioTrack]):
-        """Inicia carregamento de metadados em background."""
         def on_ready(track):
             self._metadata_queue.put(track.track_id)
 
@@ -555,7 +1015,6 @@ class SfxPanel(ttk.LabelFrame):
         self._poll_metadata()
 
     def _poll_metadata(self):
-        """Verifica se metadados ficaram prontas e atualiza widgets."""
         try:
             while True:
                 track_id = self._metadata_queue.get_nowait()
@@ -569,12 +1028,13 @@ class SfxPanel(ttk.LabelFrame):
         if pending:
             self.after(100, self._poll_metadata)
 
-    def _add_track_widget(self, track: AudioTrack):
+    def _add_track_widget(self, track: AudioTrack) -> TrackWidget:
         if self.placeholder.winfo_ismapped():
             self.placeholder.pack_forget()
         widget = TrackWidget(self.tracks_frame, track, on_remove=self._remove_track)
         widget.pack(fill="x", pady=2)
         self.track_widgets[track.track_id] = widget
+        return widget
 
     def _remove_track(self, track_id: int):
         if track_id in self.track_widgets:
@@ -583,6 +1043,7 @@ class SfxPanel(ttk.LabelFrame):
         self.audio_manager.remove_track(track_id)
         if not self.track_widgets:
             self.placeholder.pack()
+        self.save_current_session()
 
     def _pause_all(self):
         any_playing = any(t.is_playing and not t.is_paused

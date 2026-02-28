@@ -14,7 +14,7 @@ import webbrowser
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from src.audio_manager import AudioManager
-from src.session_manager import SessionManager
+from src.session_manager import SessionManager, AudioSessionManager
 from src.ui.audio_panel import AudioPanel, SfxPanel
 from src.ui.image_panel import ImagePanel
 from src.ui.canvas_window import PresentationCanvas
@@ -25,7 +25,7 @@ class MainWindow:
     """Janela principal do DM - Dungeon Music."""
 
     APP_TITLE = "DM - Dungeon Music"
-    APP_VERSION = "1.0.0"
+    APP_VERSION = "1.1.3"
 
     def __init__(self):
         self.root = tk.Tk()
@@ -41,17 +41,22 @@ class MainWindow:
         self.sfx_manager = AudioManager(channel_offset=16)  # Canais 16-31 para SFX
         self.session_manager = SessionManager()
 
-        # Caminhos de persistência
+        # Sessões de áudio (músicas e efeitos sonoros)
+        self.music_session_mgr = AudioSessionManager(subfolder="music")
+        self.sfx_session_mgr = AudioSessionManager(subfolder="sfx")
+
+        # Caminhos de persistência (para migração de formato antigo)
         self._data_dir = os.path.join(os.path.expanduser("~"), ".dm_dungeon_music")
         self._music_save = os.path.join(self._data_dir, "tracks_music.json")
         self._sfx_save = os.path.join(self._data_dir, "tracks_sfx.json")
 
-        # Build da UI
+        # Migração: formato antigo (lista plana) → sessões
+        self.music_session_mgr.migrate_from_flat_file(self._music_save, "Padrão")
+        self.sfx_session_mgr.migrate_from_flat_file(self._sfx_save, "Padrão")
+
+        # Build da UI (painéis auto-carregam a primeira sessão)
         self._build_menu()
         self._build_ui()
-
-        # Restaura faixas salvas
-        self._restore_tracks()
 
         # Atualização periódica
         self._periodic_update()
@@ -145,14 +150,14 @@ class MainWindow:
         audio_tab = ttk.Frame(self.notebook, padding=5)
         self.notebook.add(audio_tab, text=" 🎵 Áudio ")
 
-        self.audio_panel = AudioPanel(audio_tab, self.audio_manager)
+        self.audio_panel = AudioPanel(audio_tab, self.audio_manager, self.music_session_mgr)
         self.audio_panel.pack(fill="both", expand=True)
 
         # Tab de Efeitos Sonoros
         sfx_tab = ttk.Frame(self.notebook, padding=5)
         self.notebook.add(sfx_tab, text=" 💥 Efeitos Sonoros ")
 
-        self.sfx_panel = SfxPanel(sfx_tab, self.sfx_manager)
+        self.sfx_panel = SfxPanel(sfx_tab, self.sfx_manager, self.sfx_session_mgr)
         self.sfx_panel.pack(fill="both", expand=True)
 
         # Tab de Imagens
@@ -192,13 +197,6 @@ class MainWindow:
         track_info = ttk.Label(status_bar, text="Faixas: 0", foreground="gray")
         track_info.pack(side="right")
         self._track_info_label = track_info
-
-    def _restore_tracks(self):
-        """Restaura faixas de música e SFX salvas."""
-        self.audio_manager.load_track_list(self._music_save)
-        self.audio_panel.restore_tracks()
-        self.sfx_manager.load_track_list(self._sfx_save)
-        self.sfx_panel.restore_tracks()
 
     def _refresh_presentation(self):
         """Atualiza o canvas de apresentação com as imagens visíveis."""
@@ -341,9 +339,9 @@ class MainWindow:
 
     def _on_close(self):
         """Limpeza ao fechar o aplicativo."""
-        # Salva faixas
-        self.audio_manager.save_track_list(self._music_save)
-        self.sfx_manager.save_track_list(self._sfx_save)
+        # Salva sessões de áudio atuais
+        self.audio_panel.save_current_session()
+        self.sfx_panel.save_current_session()
         # Salva cache de metadados
         from src.audio_manager import _save_cache
         _save_cache()

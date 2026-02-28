@@ -731,6 +731,12 @@ class AudioManager:
             pass
         self.tracks.clear()
 
+    def clear_all(self):
+        """Para e remove todas as faixas, liberando recursos."""
+        for track_id in list(self.tracks.keys()):
+            self.remove_track(track_id)
+        self._next_id = 0
+
     def load_metadata_async(self, tracks: list[AudioTrack],
                             on_track_ready=None, on_all_done=None):
         """Carrega metadados de múltiplas faixas em background (thread pool).
