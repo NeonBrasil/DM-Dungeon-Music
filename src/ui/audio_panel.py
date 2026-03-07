@@ -94,7 +94,8 @@ class TrackWidget(ttk.Frame):
 
         # Loop checkbox
         self.loop_var = tk.BooleanVar(value=False)
-        loop_cb = ttk.Checkbutton(top_row, text="Loop", variable=self.loop_var)
+        loop_cb = ttk.Checkbutton(top_row, text="Loop", variable=self.loop_var,
+                                  command=self._on_loop_toggle)
         loop_cb.pack(side="left", padx=5)
 
         # Volume slider
@@ -180,6 +181,10 @@ class TrackWidget(ttk.Frame):
                    command=self._apply_effects).pack(side="left", padx=5)
         ttk.Button(fx_inner, text="↺ Reset",
                    command=self._reset_effects).pack(side="left", padx=2)
+
+    def _on_loop_toggle(self):
+        """Ativado quando o checkbox de Loop muda. Atualiza flag sem interromper playback."""
+        self.track.is_looping = self.loop_var.get()
 
     def _toggle_play(self):
         if self.track.is_paused:
@@ -298,15 +303,19 @@ class TrackWidget(ttk.Frame):
             self.timeline_var.set(pos)
             self.time_current.config(text=self.track.format_time(pos))
 
-            # Detecta fim natural da música (não looping)
+            # Detecta fim natural da música
             if (self.track.is_playing and not self.track.is_paused
-                    and not self.track.is_looping
                     and not self.track.is_active()):
-                self.track.is_playing = False
-                self.track._seek_offset = 0.0
-                self.timeline_var.set(0.0)
-                self.time_current.config(text="00:00")
-                self._update_ui()  # Força update final para "Parado"
+                if self.track.is_looping:
+                    # Loop ativado após o início: reinicia sem fade
+                    self.track._seek_offset = 0.0
+                    self.track.play(loop=True)
+                else:
+                    self.track.is_playing = False
+                    self.track._seek_offset = 0.0
+                    self.timeline_var.set(0.0)
+                    self.time_current.config(text="00:00")
+                    self._update_ui()
 
 
 class AudioPanel(ttk.LabelFrame):

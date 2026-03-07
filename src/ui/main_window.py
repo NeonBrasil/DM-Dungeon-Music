@@ -8,7 +8,6 @@ import tkinter as tk
 from tkinter import ttk, messagebox
 import sys
 import os
-import webbrowser
 
 # Adiciona o diretório raiz ao path
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -19,6 +18,7 @@ from src.ui.audio_panel import AudioPanel, SfxPanel
 from src.ui.image_panel import ImagePanel
 from src.ui.canvas_window import PresentationCanvas
 from src.ui.theme import apply_theme, COLORS
+from src.ui.systems_panel import SystemsPanel
 
 
 class MainWindow:
@@ -180,7 +180,12 @@ class MainWindow:
         # Tab de Sistemas
         systems_tab = ttk.Frame(self.notebook, padding=5)
         self.notebook.add(systems_tab, text=" ⚙ Sistemas ")
-        self._build_systems_tab(systems_tab)
+        SystemsPanel(systems_tab).pack(fill="both", expand=True)
+
+        # Tab Crie seu Sistema
+        create_tab = ttk.Frame(self.notebook, padding=20)
+        self.notebook.add(create_tab, text=" 🛠 Crie seu Sistema ")
+        self._build_create_system_tab(create_tab)
 
         # Barra de status
         status_bar = ttk.Frame(self.root, padding=(10, 5))
@@ -235,107 +240,37 @@ class MainWindow:
             "com seus jogadores via Discord, Zoom, etc."
         )
 
-    # ═══════════════════════════════════════
-    # Tab Sistemas
-    # ═══════════════════════════════════════
-
-    def _build_systems_tab(self, parent: ttk.Frame):
-        """Constrói a aba de Sistemas com opções D&D 5e e Sistema Próprio."""
-        # Container principal que empurra conteúdo para cima e rodapé para baixo
+    def _build_create_system_tab(self, parent: ttk.Frame):
+        """Aba para criacao de sistema proprio — em desenvolvimento."""
         parent.columnconfigure(0, weight=1)
         parent.rowconfigure(0, weight=1)
-        parent.rowconfigure(1, weight=0)
 
-        # ── Área central com as opções ──
         center = ttk.Frame(parent)
-        center.grid(row=0, column=0, sticky="nsew")
-        center.columnconfigure(0, weight=1)
+        center.grid(row=0, column=0)
 
-        # Título
-        ttk.Label(center, text="⚙ Sistemas de RPG",
-                  font=("Segoe UI", 20, "bold")).pack(pady=(40, 5))
-        ttk.Label(center, text="Escolha o sistema para sua campanha",
+        ttk.Label(center, text="🛠 Crie seu Sistema",
+                  font=("Segoe UI", 20, "bold")).pack(pady=(40, 8))
+        ttk.Label(center,
+                  text="Monte um sistema de RPG personalizado através de um questionário guiado.",
                   foreground=COLORS["text_muted"],
-                  font=("Segoe UI", 11)).pack(pady=(0, 30))
-
-        # Frame dos botões lado a lado
-        buttons_frame = ttk.Frame(center)
-        buttons_frame.pack(pady=10)
-
-        # ── Card D&D 5e ──
-        dnd_card = ttk.LabelFrame(buttons_frame, text=" 🐉 D&D 5ª Edição ",
-                                  padding=20)
-        dnd_card.pack(side="left", padx=20, ipadx=15, ipady=10)
-
-        ttk.Label(dnd_card, text="🎲",
-                  font=("Segoe UI", 36)).pack(pady=(0, 8))
-        ttk.Label(dnd_card, text="Dungeons & Dragons 5e",
-                  font=("Segoe UI", 12, "bold")).pack(pady=(0, 5))
-        ttk.Label(dnd_card, text="Wikis e referências oficiais\npara sua mesa de D&D",
-                  foreground=COLORS["text_muted"],
-                  justify="center",
-                  font=("Segoe UI", 9)).pack(pady=(0, 12))
-
-        dnd_btn1 = ttk.Button(
-            dnd_card, text="📖 D&D 5e Fandom Wiki",
-            command=lambda: webbrowser.open(
-                "https://dnd-5e.fandom.com/wiki/D%26D_5e_Wiki"),
-            style="Accent.TButton"
-        )
-        dnd_btn1.pack(fill="x", pady=3)
-
-        dnd_btn2 = ttk.Button(
-            dnd_card, text="📚 D&D 5e Wikidot",
-            command=lambda: webbrowser.open("https://dnd5e.wikidot.com"),
-            style="Accent.TButton"
-        )
-        dnd_btn2.pack(fill="x", pady=3)
-
-        # ── Card Sistema Próprio ──
-        custom_card = ttk.LabelFrame(buttons_frame,
-                                     text=" 🛠 Sistema Próprio/Modificado ",
-                                     padding=20)
-        custom_card.pack(side="left", padx=20, ipadx=15, ipady=10)
-
-        ttk.Label(custom_card, text="⚗️",
-                  font=("Segoe UI", 36)).pack(pady=(0, 8))
-        ttk.Label(custom_card, text="Sistema Próprio/Modificado",
-                  font=("Segoe UI", 12, "bold")).pack(pady=(0, 5))
-        ttk.Label(custom_card,
-                  text="Crie um sistema personalizado\natravés de um questionário guiado",
-                  foreground=COLORS["text_muted"],
-                  justify="center",
-                  font=("Segoe UI", 9)).pack(pady=(0, 5))
-        ttk.Label(custom_card, text="⚠ Fase Alpha",
+                  font=("Segoe UI", 11)).pack(pady=(0, 4))
+        ttk.Label(center, text="⚠ Em desenvolvimento — disponível em breve",
                   foreground=COLORS["warning"],
-                  font=("Segoe UI", 9, "bold")).pack(pady=(0, 8))
+                  font=("Segoe UI", 10, "bold")).pack(pady=(0, 30))
 
-        custom_btn = ttk.Button(
-            custom_card, text="🧪 Criar Sistema",
-            command=self._on_custom_system_click
-        )
-        custom_btn.pack(fill="x", pady=3)
+        card = ttk.LabelFrame(center, text=" O que estará disponível ", padding=20)
+        card.pack(ipadx=20, ipady=10)
 
-        # ── Rodapé com mensagem de atualização ──
-        footer = ttk.Frame(parent)
-        footer.grid(row=1, column=0, sticky="sew", pady=(0, 10))
-
-        ttk.Separator(footer, orient="horizontal").pack(fill="x", pady=(0, 10))
-        ttk.Label(footer, text="🔮 Novas funcionalidades estão a caminho.\n"
-                               "Fique ligado nas próximas atualizações!",
-                  foreground=COLORS["text_muted"],
-                  justify="center",
-                  font=("Segoe UI", 10)).pack()
-
-    def _on_custom_system_click(self):
-        """Exibe aviso de feature em desenvolvimento."""
-        messagebox.showinfo(
-            "🧪 Em Desenvolvimento",
-            "Essa feature ainda está sendo criada!\n\n"
-            "O questionário para criação de sistemas\n"
-            "personalizados estará disponível em breve.\n\n"
-            "⚠ Fase Alpha — Aguarde atualizações futuras."
-        )
+        features = [
+            "Definição de atributos e sistema de dados",
+            "Criação de classes, raças e origens",
+            "Regras de combate e resolução de conflitos",
+            "Sistema de magia e habilidades especiais",
+            "Exportação do sistema em PDF ou documento",
+        ]
+        for feat in features:
+            ttk.Label(card, text=f"• {feat}",
+                      font=("Segoe UI", 10)).pack(anchor="w", pady=2)
 
     def _on_close(self):
         """Limpeza ao fechar o aplicativo."""
