@@ -62,3 +62,4 @@ regras.gdd
 Thumbs.db
 Desktop.ini
 .DS_Store
+.claude/settings.local.json

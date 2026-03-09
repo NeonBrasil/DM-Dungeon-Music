@@ -19,13 +19,15 @@ from src.ui.image_panel import ImagePanel
 from src.ui.canvas_window import PresentationCanvas
 from src.ui.theme import apply_theme, COLORS
 from src.ui.systems_panel import SystemsPanel
+from src.ui.map_panel import MapPanel as MapCreatorPanel
+from src.ui.system_creator_panel import SystemCreatorPanel
 
 
 class MainWindow:
     """Janela principal do DM - Dungeon Music."""
 
     APP_TITLE = "DM - Dungeon Music"
-    APP_VERSION = "1.1.3"
+    APP_VERSION = "1.3.0"
 
     def __init__(self):
         self.root = tk.Tk()
@@ -177,15 +179,20 @@ class MainWindow:
         self.presentation_canvas = PresentationCanvas(pres_tab)
         self.presentation_canvas.pack(fill="both", expand=True)
 
+        # Tab Criador de Mapas
+        map_tab = ttk.Frame(self.notebook, padding=0)
+        self.notebook.add(map_tab, text=" 🗺 Mapa ")
+        MapCreatorPanel(map_tab).pack(fill="both", expand=True)
+
         # Tab de Sistemas
         systems_tab = ttk.Frame(self.notebook, padding=5)
         self.notebook.add(systems_tab, text=" ⚙ Sistemas ")
         SystemsPanel(systems_tab).pack(fill="both", expand=True)
 
         # Tab Crie seu Sistema
-        create_tab = ttk.Frame(self.notebook, padding=20)
+        create_tab = ttk.Frame(self.notebook, padding=0)
         self.notebook.add(create_tab, text=" 🛠 Crie seu Sistema ")
-        self._build_create_system_tab(create_tab)
+        SystemCreatorPanel(create_tab).pack(fill="both", expand=True)
 
         # Barra de status
         status_bar = ttk.Frame(self.root, padding=(10, 5))
@@ -239,38 +246,6 @@ class MainWindow:
             "Compartilhe a janela de apresentação\n"
             "com seus jogadores via Discord, Zoom, etc."
         )
-
-    def _build_create_system_tab(self, parent: ttk.Frame):
-        """Aba para criacao de sistema proprio — em desenvolvimento."""
-        parent.columnconfigure(0, weight=1)
-        parent.rowconfigure(0, weight=1)
-
-        center = ttk.Frame(parent)
-        center.grid(row=0, column=0)
-
-        ttk.Label(center, text="🛠 Crie seu Sistema",
-                  font=("Segoe UI", 20, "bold")).pack(pady=(40, 8))
-        ttk.Label(center,
-                  text="Monte um sistema de RPG personalizado através de um questionário guiado.",
-                  foreground=COLORS["text_muted"],
-                  font=("Segoe UI", 11)).pack(pady=(0, 4))
-        ttk.Label(center, text="⚠ Em desenvolvimento — disponível em breve",
-                  foreground=COLORS["warning"],
-                  font=("Segoe UI", 10, "bold")).pack(pady=(0, 30))
-
-        card = ttk.LabelFrame(center, text=" O que estará disponível ", padding=20)
-        card.pack(ipadx=20, ipady=10)
-
-        features = [
-            "Definição de atributos e sistema de dados",
-            "Criação de classes, raças e origens",
-            "Regras de combate e resolução de conflitos",
-            "Sistema de magia e habilidades especiais",
-            "Exportação do sistema em PDF ou documento",
-        ]
-        for feat in features:
-            ttk.Label(card, text=f"• {feat}",
-                      font=("Segoe UI", 10)).pack(anchor="w", pady=2)
 
     def _on_close(self):
         """Limpeza ao fechar o aplicativo."""

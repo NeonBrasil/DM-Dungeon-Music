@@ -94,10 +94,15 @@ class SystemsPanel(ttk.Frame):
         self._build_dnd5e(f)
         self._build_tormenta20(f)
         self._build_warhammer40k(f)
+        self._build_never_going_home(f)
+        self._build_apocalypse_world(f)
+        self._build_vampire(f)
+        self._build_deadlands(f)
+        self._build_blades(f)
 
         ttk.Separator(f, orient="horizontal").pack(fill="x", padx=20, pady=(20, 8))
         ttk.Label(f,
-                  text="Novas funcionalidades estão a caminho. Fique ligado nas proximas atualizações!",
+                  text="Novos sistemas serão adicionados em futuras atualizações!",
                   foreground=COLORS["text_muted"],
                   font=("Segoe UI", 9)).pack(pady=(0, 20))
 
@@ -413,3 +418,254 @@ class SystemsPanel(ttk.Frame):
         self._link(sec.content, "Reddit r/HorusHeresy", "https://www.reddit.com/r/HorusHeresy/")
         self._link(sec.content, "Roll20 - Wrath & Glory compendium", "https://roll20.net/compendium/wrath-and-glory/")
         self._link(sec.content, "Warhammer Community (noticias e lore)", "https://www.warhammer-community.com/warhammer-40000/")
+
+    # ------------------------------------------------------------------ #
+    #  Never Going Home                                                    #
+    # ------------------------------------------------------------------ #
+
+    def _build_never_going_home(self, parent):
+        card = ttk.LabelFrame(parent, text="  Never Going Home  ", padding=10)
+        card.pack(fill="x", padx=20, pady=8)
+
+        sec = _CollapsibleSection(card, "Lore e Ambientacao")
+        self._info(sec.content,
+            "Never Going Home e um RPG indie de horror sobrenatural ambientado na Primeira Guerra Mundial "
+            "(1914-1918). Os personagens sao soldados consumidos pela guerra e pelo Alem — entidades "
+            "sobrenaturais que habitam as trincheiras devastadas da Franca e da Belgica. "
+            "Ao contrario de outros jogos, aqui a morte e o fracasso sao esperados. "
+            "A questao nao e se os personagens vao sobreviver, mas o que os tornara em monstros antes disso."
+        )
+        self._info(sec.content,
+            "Principais temas: desumanizacao pela guerra, trauma, perda de identidade, horror cosmico "
+            "em escala humana. O jogo usa o horror pessoal e nao o combate heroico como motor narrativo."
+        )
+
+        sec = _CollapsibleSection(card, "Mecanicas Centrais")
+        self._subtitle(sec.content, "Pool de d6")
+        self._info(sec.content,
+            "Role um numero de d6 igual ao Atributo + Especialidade relevante. "
+            "Cada dado mostrando 4, 5 ou 6 conta como um Sucesso. "
+            "1 sucesso: resultado parcial. 2+: sucesso pleno."
+        )
+        self._subtitle(sec.content, "Atributos")
+        self._info(sec.content,
+            "Fisico — forca e resistencia corporal\n"
+            "Mental — raciocinio e presenca de espirito\n"
+            "Social — persuasao e carisma\n"
+            "Espiritual — conexao com o Alem e resistencia ao horror"
+        )
+        self._subtitle(sec.content, "Scars (Cicatrizes)")
+        self._info(sec.content,
+            "Cada trauma fisico ou psicologico deixa uma Scar. As Scars sao mecanicas: "
+            "podem dar bonus situacionais mas tambem impor penalidades. "
+            "Acumular Scars e a unica forma de 'progredir' — voce fica mais poderoso mas menos humano."
+        )
+        self._subtitle(sec.content, "Manifestacoes")
+        self._info(sec.content,
+            "Ao ganhar Scars suficientes, os personagens desenvolvem Manifestacoes do Alem — "
+            "dons sobrenaturais ligados ao trauma. Ex: sentir o medo alheio, ver os mortos, "
+            "ignorar dor fisica. Sao poderes malditos, nao escolhidos."
+        )
+
+        sec = _CollapsibleSection(card, "Links e Recursos")
+        self._link(sec.content, "Site oficial — Wet Ink Games", "https://wetinkgames.com/never-going-home/")
+        self._link(sec.content, "Never Going Home no Itch.io", "https://wetinkgames.itch.io/never-going-home")
+
+    # ------------------------------------------------------------------ #
+    #  Apocalypse World / PbtA                                            #
+    # ------------------------------------------------------------------ #
+
+    def _build_apocalypse_world(self, parent):
+        card = ttk.LabelFrame(parent, text="  Apocalypse World (PbtA)  ", padding=10)
+        card.pack(fill="x", padx=20, pady=8)
+
+        sec = _CollapsibleSection(card, "Lore e Ambientacao")
+        self._info(sec.content,
+            "Apocalypse World, de Vincent Baker (2010), fundou o movimento Powered by the Apocalypse (PbtA). "
+            "O cenario e um pos-apocalipse deliberadamente vago: nao importa o que destruiu o mundo, "
+            "importa o que as pessoas fazem agora. Violencia, politica e sobrevivencia sao os pilares. "
+            "PbtA influenciou dezenas de jogos: Dungeon World, Masks, Monster of the Week, Blades in the Dark."
+        )
+
+        sec = _CollapsibleSection(card, "Mecanicas: Moves")
+        self._subtitle(sec.content, "Rolagem basica")
+        self._info(sec.content,
+            "Role 2d6 + Stat relevante (Cool, Hard, Hot, Sharp ou Weird).\n"
+            "10+: Sucesso pleno.\n"
+            "7-9: Sucesso parcial — voce consegue, mas com custo ou escolha dificil.\n"
+            "6-: Falha — o MC faz um Move. A historia avanca de qualquer jeito."
+        )
+        self._subtitle(sec.content, "Moves")
+        self._info(sec.content,
+            "Moves sao acoes com gatilhos narrativos: 'Quando voce age sob pressao, role +Cool.' "
+            "Moves basicos: Seize by Force, Go Aggro, Act Under Fire, Read a Person, "
+            "Read a Sitch, Open Brain (Psychic Maelstrom), Manipulate, Help/Interfere, Barter."
+        )
+        self._subtitle(sec.content, "Playbooks")
+        self._info(sec.content,
+            "Battlebabe, Gunlugger, Hardholder, Hocus, Maestro D, Operator, Savvyhead, Skinner. "
+            "Cada Playbook tem Moves exclusivos e define a relacao do personagem com o mundo e o poder."
+        )
+        self._subtitle(sec.content, "MC — Mestre de Cerimonias")
+        self._info(sec.content,
+            "O MC nao rola dados. Usa Fronts (ameacas com Clocks) e faz Moves apenas em falhas (6-). "
+            "Principio central: 'Be a fan of the characters, not their enemy.'"
+        )
+
+        sec = _CollapsibleSection(card, "Links e Recursos")
+        self._link(sec.content, "Site oficial — Apocalypse World", "http://apocalypse-world.com/")
+        self._link(sec.content, "PbtA Wiki", "https://pbta.wiki/")
+        self._link(sec.content, "Reddit r/PBtA", "https://www.reddit.com/r/PBtA/")
+        self._link(sec.content, "Dungeon World (PbtA fantasy)", "https://dungeon-world.com/")
+
+    # ------------------------------------------------------------------ #
+    #  Vampire: The Masquerade                                             #
+    # ------------------------------------------------------------------ #
+
+    def _build_vampire(self, parent):
+        card = ttk.LabelFrame(parent, text="  Vampire: The Masquerade (V5)  ", padding=10)
+        card.pack(fill="x", padx=20, pady=8)
+
+        sec = _CollapsibleSection(card, "Lore: O Mundo das Trevas")
+        self._info(sec.content,
+            "Vampire: The Masquerade (White Wolf / Paradox) e um RPG de horror pessoal no Mundo das Trevas "
+            "— uma versao sombria da realidade moderna. Voce e um vampiro (Kindred): imortal, poderoso, "
+            "e amaldicoado pela Maldicao de Caim. A Mascara (Masquerade) e o pacto que mantem os vampiros "
+            "ocultos da humanidade — viola-la pode significar a Segunda Morte."
+        )
+        self._info(sec.content,
+            "A 5a Edicao (V5, 2018) reintroduz a Fome (Hunger) como mecanica central. "
+            "A politica vampirica e dominada pela Camarilla e pelos Anarquistas."
+        )
+
+        sec = _CollapsibleSection(card, "Clas e Disciplines (V5)")
+        self._subtitle(sec.content, "Clas da Camarilla")
+        self._info(sec.content,
+            "Brujah: Potence, Celerity, Presence — rebeldes apaixonados\n"
+            "Gangrel: Animalism, Fortitude, Protean — selvagens nomades\n"
+            "Malkavian: Auspex, Dominate, Obfuscate — profeticos e loucos\n"
+            "Nosferatu: Animalism, Obfuscate, Potence — espias deformados\n"
+            "Toreador: Auspex, Celerity, Presence — artistas sedutores\n"
+            "Tremere: Auspex, Blood Sorcery, Dominate — feiticeiros hermeticos\n"
+            "Ventrue: Dominate, Fortitude, Presence — aristocratas dominadores"
+        )
+
+        sec = _CollapsibleSection(card, "Mecanicas V5")
+        self._subtitle(sec.content, "Hunger Dice")
+        self._info(sec.content,
+            "A Fome (Hunger 1-5) substitui dados normais por Hunger Dice. "
+            "Hunger Die com 1 = Bestial Failure (a Besta assume o controle). "
+            "Dois 10s = Messy Critical (sucesso brutal e bestial). "
+            "Reduzir Hunger exige beber sangue — colocando a Mascara em risco."
+        )
+        self._subtitle(sec.content, "Humanidade")
+        self._info(sec.content,
+            "Humanity (0-10) mede o quanto o vampiro ainda e humano. "
+            "Atos de monstruosidade triggerram testes de Stain que reduzem Humanity. "
+            "Humanity 0 = torpor eterno ou dragao (monstro sem controle). "
+            "Recuperar Humanity exige mudancas narrativas profundas."
+        )
+
+        sec = _CollapsibleSection(card, "Links e Recursos")
+        self._link(sec.content, "World of Darkness oficial", "https://www.worldofdarkness.com/")
+        self._link(sec.content, "Reddit r/VtM", "https://www.reddit.com/r/vtm/")
+        self._link(sec.content, "V5 Wiki — Fandom", "https://whitewolf.fandom.com/wiki/Vampire:_The_Masquerade_(5th_Edition)")
+
+    # ------------------------------------------------------------------ #
+    #  Deadlands: The Weird West                                           #
+    # ------------------------------------------------------------------ #
+
+    def _build_deadlands(self, parent):
+        card = ttk.LabelFrame(parent, text="  Deadlands: The Weird West  ", padding=10)
+        card.pack(fill="x", padx=20, pady=8)
+
+        sec = _CollapsibleSection(card, "Lore: O Weird West")
+        self._info(sec.content,
+            "Deadlands e um RPG de faroeste sobrenatural de Shane Lacy Hensley (1996), pela Pinnacle. "
+            "Ambientado em 1879 num EUA alternativo onde a Guerra Civil ainda nao terminou, "
+            "mortos-vivos caminham pelo Oeste e o ghost rock — mineral sobrenatural — "
+            "alimenta uma revolucao tecnologica torta. Horror pulp americano com acao cinematografica."
+        )
+
+        sec = _CollapsibleSection(card, "Mecanicas: Savage Worlds")
+        self._subtitle(sec.content, "Sistema Savage Worlds Adventure Edition")
+        self._info(sec.content,
+            "Cada Traito tem um dado (d4 a d12). Wild Cards (PCs) rolam tambem um Wild Die (d6) "
+            "e usam o maior resultado. Target Number: 4. Cada 4 acima = 1 Raise (sucesso extra)."
+        )
+        self._subtitle(sec.content, "Arcanos Sobrenaturais")
+        self._info(sec.content,
+            "Hucksters — feiticeiros que jogam cartas com o Diabo para lancar Hexes.\n"
+            "Shamans — poderes espirituais de tradicoes nativas americanas.\n"
+            "Preachers — fe divina que manifesta milagres reais.\n"
+            "Mad Scientists — inventores de dispositivos absurdos com ghost rock.\n"
+            "Harrowed — mortos-vivos controlados por uma entidade boa, lutando contra a natureza bestial."
+        )
+        self._subtitle(sec.content, "Iniciativa com Cartas")
+        self._info(sec.content,
+            "Iniciativa determinada por cartas de baralho. Jokers valem acao extra. "
+            "O baralho cria momentos imprevistos e cinematograficos."
+        )
+
+        sec = _CollapsibleSection(card, "Links e Recursos")
+        self._link(sec.content, "Pinnacle Entertainment — Deadlands", "https://peginc.com/deadlands/")
+        self._link(sec.content, "Reddit r/deadlands", "https://www.reddit.com/r/deadlands/")
+        self._link(sec.content, "Deadlands Wiki — Fandom", "https://deadlands.fandom.com/wiki/Deadlands_Wiki")
+
+    # ------------------------------------------------------------------ #
+    #  Blades in the Dark                                                  #
+    # ------------------------------------------------------------------ #
+
+    def _build_blades(self, parent):
+        card = ttk.LabelFrame(parent, text="  Blades in the Dark  ", padding=10)
+        card.pack(fill="x", padx=20, pady=8)
+
+        sec = _CollapsibleSection(card, "Lore: Doskvol")
+        self._info(sec.content,
+            "Blades in the Dark (John Harper, 2017) e um RPG de heist urbano em Doskvol — "
+            "cidade industrial de fantasia vitoriana rodeada por raios eletricos que contem fantasmas. "
+            "O sol foi destruido ha seculos; o mundo e permanentemente escuro. "
+            "Os personagens formam uma gang criminosa (Crew) que realiza Scores (golpes) "
+            "para ganhar dinheiro e reputacao em meio a facoes rivais perigosas."
+        )
+
+        sec = _CollapsibleSection(card, "Mecanicas Centrais")
+        self._subtitle(sec.content, "Rolagem de Acao")
+        self._info(sec.content,
+            "Role um pool de d6 (valor da Acao). Use o dado mais alto:\n"
+            "6: Sucesso pleno.\n"
+            "4-5: Sucesso parcial — com consequencia ou custo.\n"
+            "1-3: Falha — as coisas pioram.\n"
+            "Zero dados: Role 2d6, use o menor."
+        )
+        self._subtitle(sec.content, "Posicao e Efeito")
+        self._info(sec.content,
+            "Antes de rolar, o GM define Posicao (Controlled / Risky / Desperate) e "
+            "Efeito (Limited / Standard / Great). Negociados entre GM e jogador."
+        )
+        self._subtitle(sec.content, "Flashbacks")
+        self._info(sec.content,
+            "Durante um Score, qualquer jogador pode declarar um Flashback: "
+            "'Antes de entrar, eu preparei uma saida secreta.' "
+            "Elimina a necessidade de planejar tudo antes do Score comecar. "
+            "Custo: 0-2 Stress, definido pelo GM."
+        )
+        self._subtitle(sec.content, "Stress e Trauma")
+        self._info(sec.content,
+            "Personagens tem 9 pontos de Stress, gastos para resistir a consequencias ou usar habilidades. "
+            "Ao encher, o personagem sofre um Trauma e vai para recuperacao. "
+            "4 Traumas = personagem se aposenta da vida criminosa."
+        )
+        self._subtitle(sec.content, "Playbooks")
+        self._info(sec.content,
+            "Cutter (combatente) | Hound (cacador/arqueiro) | Leech (engenheiro/venenos)\n"
+            "Lurk (infiltrador) | Slide (manipulador social) | Spider (estrategista)\n"
+            "Whisper (ocultista — acessa o mundo fantasmagorico)"
+        )
+
+        sec = _CollapsibleSection(card, "Links e Recursos")
+        self._link(sec.content, "Site oficial — Blades in the Dark", "https://bladesinthedark.com/")
+        self._link(sec.content, "SRD gratuito (Blades)", "https://bladesinthedark.com/greetings-scoundrel")
+        self._link(sec.content, "John Harper no Itch.io", "https://johnharper.itch.io/blades-in-the-dark")
+        self._link(sec.content, "Reddit r/bladesinthedark", "https://www.reddit.com/r/bladesinthedark/")
+        self._link(sec.content, "Hacks e derivados de BitD", "https://bladesinthedark.com/hacks-and-games")
