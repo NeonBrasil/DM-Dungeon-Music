@@ -5,8 +5,11 @@ Canvas estilo livre com posicionamento, zoom global, zoom individual,
 camadas (z-order) e drag de imagens.
 """
 
+import os
+import json
 import tkinter as tk
 from tkinter import ttk
+from dataclasses import asdict
 from PIL import Image, ImageTk
 import random
 import math
@@ -114,6 +117,9 @@ class PresentationCanvas(ttk.Frame):
         # Z-order counter
         self._z_counter = 0
 
+        # Sessão atual (para salvar posições)
+        self._current_session: Session | None = None
+
         self._build()
         self._bind_events()
 
@@ -149,6 +155,11 @@ class PresentationCanvas(ttk.Frame):
 
         ttk.Button(toolbar, text="🖼 Centralizar", width=10,
                    command=self._center_view).pack(side="left", padx=1)
+
+        ttk.Separator(toolbar, orient="vertical").pack(side="left", fill="y", padx=5)
+
+        ttk.Button(toolbar, text="💾 Salvar Posições", width=14,
+                   command=self._save_positions).pack(side="left", padx=1)
 
         ttk.Separator(toolbar, orient="vertical").pack(side="left", fill="y", padx=5)
 
@@ -570,6 +581,7 @@ class PresentationCanvas(ttk.Frame):
 
     def display_session_images(self, session: Session | None):
         """Exibe todas as imagens visíveis de uma sessão no canvas."""
+        self._current_session = session
         self._canvas_images.clear()
         self._selected_image = None
         self.particles.clear()
@@ -634,6 +646,33 @@ class PresentationCanvas(ttk.Frame):
         if self.particle_emitters and not self._animating:
             self._animating = True
             self._animate_particles()
+
+    def _save_positions(self):
+        """Persiste posição e escala atuais de todas as imagens no JSON da sessão."""
+        session = self._current_session
+        if not session:
+            return
+        # Sincroniza z_order de volta para o ImageItem não é necessário pois
+        # position_x/y e scale já são atualizados em tempo real durante drag/scale.
+        meta_path = os.path.join(session.folder_path, "_session.json")
+        data = {
+            "name": session.name,
+            "folder_path": session.folder_path,
+            "images": [asdict(img) for img in session.images],
+            "display_order": session.display_order,
+        }
+        try:
+            with open(meta_path, "w", encoding="utf-8") as f:
+                json.dump(data, f, ensure_ascii=False, indent=2)
+            self._info_label.config(text="✅ Posições salvas!")
+            self.after(2500, lambda: self._info_label.config(
+                text=f"📌 {self._selected_image.img_item.name} | "
+                     f"Escala: {int(self._selected_image.scale * 100)}% | "
+                     f"Pos: ({int(self._selected_image.x)}, {int(self._selected_image.y)})"
+                     if self._selected_image else ""
+            ))
+        except Exception as e:
+            self._info_label.config(text=f"❌ Erro ao salvar: {e}")
 
     def _center_view(self):
         """Centraliza a câmera em todas as imagens visíveis."""

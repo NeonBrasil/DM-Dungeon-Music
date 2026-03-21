@@ -2,3 +2,4 @@ pygame>=2.5.0
 Pillow>=10.0.0
 mutagen>=1.47.0
 pyinstaller>=6.0.0
+PySide6>=6.6.0

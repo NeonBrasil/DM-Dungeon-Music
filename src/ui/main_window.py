@@ -19,7 +19,7 @@ from src.ui.image_panel import ImagePanel
 from src.ui.canvas_window import PresentationCanvas
 from src.ui.theme import apply_theme, COLORS
 from src.ui.systems_panel import SystemsPanel
-from src.ui.map_panel import MapPanel as MapCreatorPanel
+from src.ui.map_launcher import MapLauncherPanel as MapCreatorPanel
 from src.ui.system_creator_panel import SystemCreatorPanel
 
 
@@ -27,7 +27,7 @@ class MainWindow:
     """Janela principal do DM - Dungeon Music."""
 
     APP_TITLE = "DM - Dungeon Music"
-    APP_VERSION = "1.3.0"
+    APP_VERSION = "1.7.8"
 
     def __init__(self):
         self.root = tk.Tk()
