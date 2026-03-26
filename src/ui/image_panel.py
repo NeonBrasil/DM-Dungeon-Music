@@ -9,6 +9,7 @@ from tkinter import ttk, filedialog, messagebox, simpledialog
 from PIL import Image, ImageTk
 from src.session_manager import SessionManager, Session, ImageItem
 from src.ui.theme import COLORS
+from src.i18n.translator import t
 
 
 class ImagePreview(ttk.Frame):
@@ -35,7 +36,7 @@ class ImagePreview(ttk.Frame):
             self.photo = ImageTk.PhotoImage(img)
             thumb_label = ttk.Label(self, image=self.photo)
         except Exception:
-            thumb_label = ttk.Label(self, text="[Sem\nPreview]", width=15,
+            thumb_label = ttk.Label(self, text=t("image.preview.no_preview"), width=15,
                                    anchor="center", foreground="gray")
         thumb_label.grid(row=0, column=0, rowspan=3, padx=(0, 10))
 
@@ -54,7 +55,7 @@ class ImagePreview(ttk.Frame):
         controls.grid(row=2, column=1, sticky="w", pady=(5, 0))
 
         # Visibilidade
-        vis_text = "👁 Visível" if self.image_item.visible else "👁‍🗨 Oculto"
+        vis_text = t("image.preview.visible") if self.image_item.visible else t("image.preview.hidden")
         vis_color = "#2ecc71" if self.image_item.visible else "gray"
         self.vis_btn = ttk.Button(controls, text=vis_text,
                                   command=lambda: self.on_toggle_visibility(self.index)
@@ -62,13 +63,13 @@ class ImagePreview(ttk.Frame):
         self.vis_btn.pack(side="left", padx=2)
 
         # Editar Stats
-        edit_btn = ttk.Button(controls, text="📊 Stats",
+        edit_btn = ttk.Button(controls, text=t("image.preview.stats_btn"),
                               command=lambda: self.on_edit_stats(self.index)
                               if self.on_edit_stats else None)
         edit_btn.pack(side="left", padx=2)
 
         # Remover
-        rem_btn = ttk.Button(controls, text="✕ Remover",
+        rem_btn = ttk.Button(controls, text=t("image.preview.remove_btn"),
                              command=lambda: self.on_remove(self.index)
                              if self.on_remove else None)
         rem_btn.pack(side="left", padx=2)
@@ -94,9 +95,9 @@ class StatsDialog(tk.Toplevel):
         main = ttk.Frame(self, padding=15)
         main.pack(fill="both", expand=True)
 
-        ttk.Label(main, text="Editar Atributos do Item",
+        ttk.Label(main, text=t("image.stats.title"),
                   font=("", 12, "bold")).pack(pady=(0, 10))
-        ttk.Label(main, text="Formato: Nome = Valor (um por linha)",
+        ttk.Label(main, text=t("image.stats.format_hint"),
                   foreground="gray").pack()
 
         self.text = tk.Text(main, height=10, width=40, font=("Consolas", 10),
@@ -111,8 +112,8 @@ class StatsDialog(tk.Toplevel):
 
         btn_frame = ttk.Frame(main)
         btn_frame.pack(fill="x")
-        ttk.Button(btn_frame, text="Salvar", command=self._save).pack(side="right", padx=5)
-        ttk.Button(btn_frame, text="Cancelar", command=self.destroy).pack(side="right")
+        ttk.Button(btn_frame, text=t("image.stats.save_btn"), command=self._save).pack(side="right", padx=5)
+        ttk.Button(btn_frame, text=t("image.stats.cancel_btn"), command=self.destroy).pack(side="right")
 
     def _save(self):
         stats = {}
@@ -130,7 +131,7 @@ class ImagePanel(ttk.LabelFrame):
     """Painel principal de gerenciamento de imagens."""
 
     def __init__(self, parent, session_manager: SessionManager, on_show_image=None):
-        super().__init__(parent, text=" 🖼 Imagens & Sessões ", padding=10)
+        super().__init__(parent, text=t("image.panel.title"), padding=10)
         self.session_manager = session_manager
         self.on_show_image = on_show_image  # Callback para mostrar imagem no canvas
         self.current_session: Session | None = None
@@ -142,7 +143,7 @@ class ImagePanel(ttk.LabelFrame):
         session_toolbar = ttk.Frame(self)
         session_toolbar.pack(fill="x", pady=(0, 5))
 
-        ttk.Label(session_toolbar, text="Sessão:").pack(side="left", padx=(0, 5))
+        ttk.Label(session_toolbar, text=t("session.label")).pack(side="left", padx=(0, 5))
 
         self.session_var = tk.StringVar()
         self.session_combo = ttk.Combobox(
@@ -152,20 +153,20 @@ class ImagePanel(ttk.LabelFrame):
         self.session_combo.pack(side="left", padx=2)
         self.session_combo.bind("<<ComboboxSelected>>", self._on_session_selected)
 
-        ttk.Button(session_toolbar, text="➕ Nova",
+        ttk.Button(session_toolbar, text=t("session.new_btn"),
                    command=self._new_session).pack(side="left", padx=2)
-        ttk.Button(session_toolbar, text="📁 Importar Pasta",
+        ttk.Button(session_toolbar, text=t("session.import_btn"),
                    command=self._import_folder).pack(side="left", padx=2)
-        ttk.Button(session_toolbar, text="🗑 Excluir",
+        ttk.Button(session_toolbar, text=t("session.delete_btn"),
                    command=self._delete_session).pack(side="left", padx=2)
 
         # Toolbar de imagens
         img_toolbar = ttk.Frame(self)
         img_toolbar.pack(fill="x", pady=(0, 5))
 
-        ttk.Button(img_toolbar, text="➕ Adicionar Imagens",
+        ttk.Button(img_toolbar, text=t("image.toolbar.add"),
                    command=self._add_images, style="Accent.TButton").pack(side="left", padx=2)
-        ttk.Button(img_toolbar, text="👁 Mostrar Selecionada",
+        ttk.Button(img_toolbar, text=t("image.toolbar.show_selected"),
                    command=self._show_selected).pack(side="left", padx=2)
 
         # Container scrollável para imagens
@@ -187,7 +188,7 @@ class ImagePanel(ttk.LabelFrame):
         # Placeholder
         self.placeholder = ttk.Label(
             self.images_frame,
-            text="Crie ou selecione uma sessão para gerenciar imagens.",
+            text=t("image.placeholder.no_session"),
             foreground="gray", justify="center", padding=30
         )
         self.placeholder.pack()
@@ -222,8 +223,7 @@ class ImagePanel(ttk.LabelFrame):
         if self.current_session is None or not self.current_session.images:
             self.placeholder.pack()
             if self.current_session and not self.current_session.images:
-                self.placeholder.config(text="Nenhuma imagem nesta sessão.\n"
-                                            "Clique em '➕ Adicionar Imagens'.")
+                self.placeholder.config(text=t("image.placeholder.no_images"))
             return
 
         self.placeholder.pack_forget()
@@ -239,7 +239,7 @@ class ImagePanel(ttk.LabelFrame):
             self.image_widgets.append(widget)
 
     def _new_session(self):
-        name = simpledialog.askstring("Nova Sessão", "Nome da sessão:",
+        name = simpledialog.askstring(t("session.new_title"), t("session.new_prompt"),
                                       parent=self)
         if name:
             self.session_manager.create_session(name)
@@ -250,7 +250,7 @@ class ImagePanel(ttk.LabelFrame):
     def _delete_session(self):
         name = self.session_var.get()
         if name:
-            if messagebox.askyesno("Confirmar", f"Excluir sessão '{name}'?"):
+            if messagebox.askyesno(t("session.delete_confirm_title"), t("session.delete_confirm_body", name=name)):
                 self.session_manager.delete_session(name)
                 self.session_var.set("")
                 self.current_session = None
@@ -258,10 +258,10 @@ class ImagePanel(ttk.LabelFrame):
                 self._refresh_images()
 
     def _import_folder(self):
-        folder = filedialog.askdirectory(title="Selecionar Pasta de Imagens")
+        folder = filedialog.askdirectory(title=t("image.session.import_folder_title"))
         if folder:
-            name = simpledialog.askstring("Nome da Sessão",
-                                          "Nome para a sessão importada:",
+            name = simpledialog.askstring(t("image.session.import_name_title"),
+                                          t("session.import_name_prompt"),
                                           initialvalue=os.path.basename(folder),
                                           parent=self)
             if name:
@@ -272,11 +272,11 @@ class ImagePanel(ttk.LabelFrame):
 
     def _add_images(self):
         if self.current_session is None:
-            messagebox.showwarning("Aviso", "Selecione ou crie uma sessão primeiro.")
+            messagebox.showwarning(t("image.warning.title"), t("image.select_session_first"))
             return
 
         files = filedialog.askopenfilenames(
-            title="Selecionar Imagens",
+            title=t("image.add_images_title"),
             filetypes=[
                 ("Imagens", "*.png *.jpg *.jpeg *.gif *.bmp *.webp"),
                 ("Todos", "*.*"),
@@ -312,7 +312,7 @@ class ImagePanel(ttk.LabelFrame):
 
     def _remove_image(self, index: int):
         if self.current_session:
-            if messagebox.askyesno("Confirmar", "Remover esta imagem da sessão?"):
+            if messagebox.askyesno(t("image.remove_confirm_title"), t("image.remove_confirm_body")):
                 self.current_session.remove_image(index)
                 self.session_manager._save_session(self.current_session)
                 self._refresh_images()

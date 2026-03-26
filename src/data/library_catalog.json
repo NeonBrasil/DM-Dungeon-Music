@@ -1,0 +1,58 @@
+{
+  "schema_version": "1.0",
+  "updated_at": "2026-03-25",
+  "packs": [
+    {
+      "id": "game-icons-net-core",
+      "name": "Game-Icons.net Core Set",
+      "description": "500 ícones de RPG de alta qualidade: armas, magias, monstros, itens e muito mais. Ideal para tokens de mapa e cartas de itens.",
+      "url": "https://github.com/USER/dm-dungeon-music-libs/releases/download/v1.0/game-icons-net-core.zip",
+      "size_mb": 12.4,
+      "category": "icons",
+      "license": "CC BY 3.0",
+      "thumbnail_url": "",
+      "version": "1.0",
+      "image_count": 500,
+      "tags": ["weapons", "spells", "monsters", "items"]
+    },
+    {
+      "id": "kenney-rpg-tokens",
+      "name": "Kenney RPG Character Tokens",
+      "description": "Tokens de personagem top-down para heróis, inimigos e NPCs. Arte Kenney.nl, domínio público.",
+      "url": "https://github.com/USER/dm-dungeon-music-libs/releases/download/v1.0/kenney-rpg-tokens.zip",
+      "size_mb": 8.7,
+      "category": "tokens",
+      "license": "CC0 (Domínio Público)",
+      "thumbnail_url": "",
+      "version": "1.0",
+      "image_count": 120,
+      "tags": ["characters", "heroes", "enemies", "npcs"]
+    },
+    {
+      "id": "kenney-dungeon-tiles",
+      "name": "Kenney Dungeon Tiles",
+      "description": "Tiles de dungeon top-down para montar salas, corredores e armadilhas. Compatível com grade quadrada.",
+      "url": "https://github.com/USER/dm-dungeon-music-libs/releases/download/v1.0/kenney-dungeon-tiles.zip",
+      "size_mb": 5.2,
+      "category": "maps",
+      "license": "CC0 (Domínio Público)",
+      "thumbnail_url": "",
+      "version": "1.0",
+      "image_count": 80,
+      "tags": ["dungeon", "tiles", "rooms", "corridors"]
+    },
+    {
+      "id": "game-icons-net-nature",
+      "name": "Game-Icons.net Nature & World",
+      "description": "Ícones de natureza, clima, biomas e elementos do mundo. Perfeito para mapas de campanha e viagem.",
+      "url": "https://github.com/USER/dm-dungeon-music-libs/releases/download/v1.0/game-icons-net-nature.zip",
+      "size_mb": 9.1,
+      "category": "icons",
+      "license": "CC BY 3.0",
+      "thumbnail_url": "",
+      "version": "1.0",
+      "image_count": 320,
+      "tags": ["nature", "world", "weather", "biomes"]
+    }
+  ]
+}

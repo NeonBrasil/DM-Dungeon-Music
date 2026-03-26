@@ -22,6 +22,7 @@ import os
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from src.ui.theme import COLORS
+from src.i18n.translator import t
 from src.system_creator.system_manager import SystemManager
 from src.system_creator.wizard_steps import (
     WIZARD_STEPS, TOTAL_STEPS, PHASES,
@@ -65,7 +66,7 @@ Dicas:
 
 def _show_tutorial(parent):
     win = tk.Toplevel(parent)
-    win.title("Tutorial — Criador de Sistemas")
+    win.title(t("creator.tutorial.title"))
     win.geometry("640x520")
     win.configure(bg=COLORS["bg"])
     win.grab_set()
@@ -76,7 +77,7 @@ def _show_tutorial(parent):
     txt.insert("1.0", TUTORIAL_TEXT)
     txt.config(state="disabled")
 
-    ttk.Button(win, text="Fechar", command=win.destroy).pack(pady=(0, 12))
+    ttk.Button(win, text=t("creator.tutorial.close_btn"), command=win.destroy).pack(pady=(0, 12))
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -95,15 +96,15 @@ class _SessionBar(ttk.Frame):
         self._var = tk.StringVar()
 
         # Combo
-        ttk.Label(self, text="Sistema:").pack(side="left", padx=(0, 4))
+        ttk.Label(self, text=t("creator.session.system_label")).pack(side="left", padx=(0, 4))
         self._combo = ttk.Combobox(self, textvariable=self._var, width=24, state="readonly")
         self._combo.pack(side="left", padx=(0, 8))
         self._combo.bind("<<ComboboxSelected>>", lambda e: on_load(self._var.get()))
 
-        ttk.Button(self, text="+ Novo",    command=on_create,  width=8).pack(side="left", padx=2)
-        ttk.Button(self, text="Renomear",  command=on_rename,  width=9).pack(side="left", padx=2)
-        ttk.Button(self, text="Excluir",   command=on_delete,  width=8).pack(side="left", padx=2)
-        ttk.Button(self, text="? Tutorial",command=on_tutorial,width=10).pack(side="left", padx=(12, 0))
+        ttk.Button(self, text=t("creator.session.new_btn"),     command=on_create,  width=8).pack(side="left", padx=2)
+        ttk.Button(self, text=t("creator.session.rename_btn"),  command=on_rename,  width=9).pack(side="left", padx=2)
+        ttk.Button(self, text=t("creator.session.delete_btn"),  command=on_delete,  width=8).pack(side="left", padx=2)
+        ttk.Button(self, text=t("creator.session.tutorial_btn"),command=on_tutorial,width=10).pack(side="left", padx=(12, 0))
 
         self.refresh()
 
@@ -132,7 +133,7 @@ class _ProgressSidebar(tk.Frame):
         self._build()
 
     def _build(self):
-        ttk.Label(self, text="Progresso", style="Subtitle.TLabel",
+        ttk.Label(self, text=t("creator.sidebar.progress"), style="Subtitle.TLabel",
                   background=COLORS["surface"]).pack(pady=(12, 8), padx=8, anchor="w")
 
         for idx, phase_name in PHASES:
@@ -143,7 +144,7 @@ class _ProgressSidebar(tk.Frame):
                                fg=COLORS["text_muted"], font=("Segoe UI", 12))
             bullet.pack(side="left")
 
-            lbl = tk.Label(row, text=phase_name, bg=COLORS["surface"],
+            lbl = tk.Label(row, text=t(f"creator.phases.{idx}"), bg=COLORS["surface"],
                             fg=COLORS["text_muted"], font=("Segoe UI", 10), anchor="w")
             lbl.pack(side="left", padx=(4, 0), fill="x", expand=True)
 
@@ -450,14 +451,14 @@ class _StepContent(tk.Frame):
         nav = tk.Frame(self, bg=COLORS["card"], pady=10, padx=16)
         nav.pack(fill="x", side="bottom")
 
-        self._prev_btn = ttk.Button(nav, text="◀  Anterior", command=on_prev, width=14)
+        self._prev_btn = ttk.Button(nav, text=t("creator.nav.prev"), command=on_prev, width=14)
         self._prev_btn.pack(side="left")
 
         self._step_counter = tk.Label(nav, text="", bg=COLORS["card"],
                                        fg=COLORS["text_muted"], font=("Segoe UI", 9))
         self._step_counter.pack(side="left", expand=True)
 
-        self._next_btn = ttk.Button(nav, text="Próximo  ▶", command=on_next,
+        self._next_btn = ttk.Button(nav, text=t("creator.nav.next"), command=on_next,
                                      width=14, style="Accent.TButton")
         self._next_btn.pack(side="right")
 
@@ -471,10 +472,10 @@ class _StepContent(tk.Frame):
         self._step = step
 
         # Header
-        self._phase_label.config(text=f"Fase {step['phase_index'] + 1} · {step['phase']}")
+        self._phase_label.config(text=t("creator.step.phase_label", num=step['phase_index'] + 1, phase=t(f"creator.phases.{step['phase_index']}")))
         req = " *" if step.get("required") else ""
         self._title_label.config(text=step["question"] + req)
-        self._progress_label.config(text=f"Passo {step_num} de {total}")
+        self._progress_label.config(text=t("creator.step.progress", num=step_num, total=total))
         self._step_counter.config(text=f"{step_num} / {total}")
 
         # Limpa inner
@@ -497,7 +498,7 @@ class _StepContent(tk.Frame):
                 ex_frame = tk.Frame(self._inner, bg=COLORS.get("warning_bg", "#2a2510"),
                                      relief="flat", bd=1)
                 ex_frame.pack(fill="x", padx=16, pady=(8, 0))
-                tk.Label(ex_frame, text=f"💡 Exemplo — {base_system}:",
+                tk.Label(ex_frame, text=t("creator.step.example_prefix", system=base_system),
                           bg=ex_frame["bg"], fg=COLORS.get("warning", "#f0c040"),
                           font=("Segoe UI", 9, "bold")).pack(anchor="w", padx=8, pady=(4, 0))
                 tk.Label(ex_frame, text=ex_text, bg=ex_frame["bg"],
@@ -537,7 +538,7 @@ class _StepContent(tk.Frame):
 
     def set_finish_mode(self, has_export_result: bool = False):
         """Troca o botão Próximo por Finalizar/Exportar na última etapa."""
-        self._next_btn.config(text="✔ Finalizar & Exportar")
+        self._next_btn.config(text=t("creator.nav.finish"))
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -578,8 +579,7 @@ class SystemCreatorPanel(ttk.Frame):
         alfa_bar.pack(fill="x")
         tk.Label(
             alfa_bar,
-            text="⚠  VERSÃO ALFA — Funcionalidade em desenvolvimento ativo. "
-                 "Salve seus sistemas com frequência.",
+            text=t("creator.alpha_warning"),
             bg="#7c2d12", fg="#fed7aa",
             font=("Segoe UI", 9, "bold"),
         ).pack()
@@ -589,10 +589,10 @@ class SystemCreatorPanel(ttk.Frame):
         # Empty state placeholder
         self._empty_frame = tk.Frame(self, bg=COLORS["bg"])
         self._empty_frame.place(relx=0.5, rely=0.5, anchor="center")
-        tk.Label(self._empty_frame, text="Nenhum sistema carregado",
+        tk.Label(self._empty_frame, text=t("creator.empty.title"),
                   bg=COLORS["bg"], fg=COLORS["text_muted"],
                   font=("Segoe UI", 14)).pack(pady=(0, 8))
-        ttk.Button(self._empty_frame, text="+ Criar Novo Sistema",
+        ttk.Button(self._empty_frame, text=t("creator.empty.subtitle"),
                     command=self._new_system).pack()
 
         # Main layout (sidebar + content)
@@ -630,14 +630,14 @@ class SystemCreatorPanel(ttk.Frame):
 
     def _new_system(self):
         name = simpledialog.askstring(
-            "Novo Sistema", "Nome do sistema:",
+            t("creator.new_system_title"), t("creator.new_system_prompt"),
             parent=self, initialvalue="Meu Sistema"
         )
         if not name or not name.strip():
             return
         name = name.strip()
         if name in self._mgr.list_systems():
-            messagebox.showwarning("Aviso", f"Sistema '{name}' já existe.", parent=self)
+            messagebox.showwarning(t("creator.error.title"), t("creator.error.exists", name=name), parent=self)
             return
         data = self._mgr.create_system(name)
         self._session_bar.refresh()
@@ -660,7 +660,7 @@ class SystemCreatorPanel(ttk.Frame):
         name = self._session_bar.current()
         if not name:
             return
-        if not messagebox.askyesno("Excluir", f"Excluir '{name}'?", parent=self):
+        if not messagebox.askyesno(t("creator.delete_confirm_title"), t("creator.delete_confirm_body", name=name), parent=self):
             return
         self._mgr.delete_system(name)
         self._session_bar.refresh()
@@ -676,12 +676,12 @@ class SystemCreatorPanel(ttk.Frame):
         old = self._session_bar.current()
         if not old:
             return
-        new = simpledialog.askstring("Renomear", "Novo nome:", parent=self, initialvalue=old)
+        new = simpledialog.askstring(t("creator.rename_title"), t("creator.rename_prompt", name=old), parent=self, initialvalue=old)
         if not new or not new.strip() or new.strip() == old:
             return
         new = new.strip()
         if not self._mgr.rename_system(old, new):
-            messagebox.showerror("Erro", "Falha ao renomear.", parent=self)
+            messagebox.showerror(t("creator.error.title"), t("creator.error.rename_failed"), parent=self)
             return
         self._session_bar.refresh()
         self._session_bar.set_current(new)
@@ -763,8 +763,8 @@ class SystemCreatorPanel(ttk.Frame):
         answer = self._step_content.get_answer()
 
         if step.get("required") and (answer is None or answer == [] or answer == ""):
-            messagebox.showwarning("Campo obrigatório",
-                                    "Por favor, responda antes de continuar.", parent=self)
+            messagebox.showwarning(t("creator.warning.required_field"),
+                                    t("creator.warning.required_body"), parent=self)
             return
 
         answers = self._system_data.setdefault("answers", {})
@@ -841,7 +841,7 @@ class SystemCreatorPanel(ttk.Frame):
         answers = self._system_data.get("answers", {})
 
         win = tk.Toplevel(self)
-        win.title("Exportar Sistema")
+        win.title(t("creator.export.title"))
         win.geometry("560x560")
         win.configure(bg=COLORS["bg"])
         win.grab_set()

@@ -9,6 +9,7 @@ from tkinter import ttk
 import webbrowser
 
 from src.ui.theme import COLORS
+from src.i18n.translator import t
 
 
 class _CollapsibleSection:
@@ -85,9 +86,9 @@ class SystemsPanel(ttk.Frame):
 
         f = self._scroll_frame
 
-        ttk.Label(f, text="Sistemas de RPG",
+        ttk.Label(f, text=t("systems.title"),
                   font=("Segoe UI", 18, "bold")).pack(pady=(20, 4))
-        ttk.Label(f, text="Referencias, lore e regras para sua campanha",
+        ttk.Label(f, text=t("systems.subtitle"),
                   foreground=COLORS["text_muted"],
                   font=("Segoe UI", 10)).pack(pady=(0, 14))
 
@@ -102,7 +103,7 @@ class SystemsPanel(ttk.Frame):
 
         ttk.Separator(f, orient="horizontal").pack(fill="x", padx=20, pady=(20, 8))
         ttk.Label(f,
-                  text="Novos sistemas serão adicionados em futuras atualizações!",
+                  text=t("systems.footer"),
                   foreground=COLORS["text_muted"],
                   font=("Segoe UI", 9)).pack(pady=(0, 20))
 
@@ -135,11 +136,11 @@ class SystemsPanel(ttk.Frame):
     # ------------------------------------------------------------------ #
 
     def _build_dnd5e(self, parent):
-        card = ttk.LabelFrame(parent, text="  D&D 5a Edicao  ", padding=10)
+        card = ttk.LabelFrame(parent, text=t("systems.dnd5e.card"), padding=10)
         card.pack(fill="x", padx=20, pady=8)
 
         # Lore
-        sec = _CollapsibleSection(card, "Lore e Ambientacao")
+        sec = _CollapsibleSection(card, t("systems.sec.lore_setting"))
         self._info(sec.content,
             "D&D 5e se passa por padrao nos Forgotten Realms, um mundo de alta fantasia com magia, "
             "deuses ativos, imperios antigos e racas diversas. O continente de Faerun abriga cidades "
@@ -147,14 +148,14 @@ class SystemsPanel(ttk.Frame):
             "por Ed Greenwood em 1967 e se tornou o mais popular de D&D. Outros cenarios oficiais "
             "incluem Eberron (fantasia industrial com magitech), Ravenloft (horror gotico), "
             "Spelljammer (viagem espacial magica) e Planescape (multiverso filosofico).")
-        self._subtitle(sec.content, "Links de Lore:")
+        self._subtitle(sec.content, t("systems.sub.lore_links"))
         self._link(sec.content, "Forgotten Realms Wiki (completa)", "https://forgottenrealms.fandom.com/wiki/Main_Page")
         self._link(sec.content, "D&D Fandom Wiki", "https://dnd-5e.fandom.com/wiki/D%26D_5e_Wiki")
         self._link(sec.content, "Planescape & Multiverso", "https://forgottenrealms.fandom.com/wiki/Cosmology")
         self._link(sec.content, "Eberron Wiki", "https://eberron.fandom.com/wiki/Eberron_Wiki")
 
         # Regras
-        sec = _CollapsibleSection(card, "Regras e Mecanicas")
+        sec = _CollapsibleSection(card, t("systems.sec.rules_mechanics"))
         self._info(sec.content,
             "D&D 5e usa d20 como dado principal. Testes de habilidade, jogadas de ataque e saves "
             "usam d20 + modificador vs CD (Classe de Dificuldade). O sistema de "
@@ -163,7 +164,7 @@ class SystemsPanel(ttk.Frame):
             "e Reacao. Iniciativa determina a ordem. Ataques de Oportunidade ocorrem quando "
             "um inimigo sai do alcance. Condicoes (agarrado, atordoado, etc.) afetam o combate. "
             "Descanso Curto (1h) recupera Dados de Vida; Descanso Longo (8h) recupera tudo.")
-        self._subtitle(sec.content, "Referencias de Regras:")
+        self._subtitle(sec.content, t("systems.sub.rules_refs"))
         self._link(sec.content, "D&D 5e SRD Completo (5thSRD)", "https://5thsrd.org")
         self._link(sec.content, "D&D 5e Wikidot (regras detalhadas)", "https://dnd5e.wikidot.com")
         self._link(sec.content, "Open5e - SRD Open Source", "https://open5e.com")
@@ -171,7 +172,7 @@ class SystemsPanel(ttk.Frame):
         self._link(sec.content, "Regras de Combate detalhadas (Wikidot)", "https://dnd5e.wikidot.com/combat")
 
         # Classes e Racas
-        sec = _CollapsibleSection(card, "Classes e Racas")
+        sec = _CollapsibleSection(card, t("systems.dnd5e.sec.classes_races"))
         self._info(sec.content,
             "13 classes principais: Barbaro (furia), Bardo (magia arcana + suporte), "
             "Clerico (magia divina), Druida (magia natural), Guerreiro (combate versatil), "
@@ -186,7 +187,7 @@ class SystemsPanel(ttk.Frame):
         self._link(sec.content, "Subclasses (D&D Beyond)", "https://www.dndbeyond.com/subclasses")
 
         # Magias
-        sec = _CollapsibleSection(card, "Magia e Feiticos")
+        sec = _CollapsibleSection(card, t("systems.dnd5e.sec.magic"))
         self._info(sec.content,
             "Magia em 5e usa slots de magia por nivel (1-9). Classes distintas conhecem ou "
             "preparam magias de formas diferentes: Magos estudam um grimorio e preparam por dia; "
@@ -199,7 +200,7 @@ class SystemsPanel(ttk.Frame):
         self._link(sec.content, "Feiticos (Open5e)", "https://open5e.com/spells/spells")
 
         # Ferramentas
-        sec = _CollapsibleSection(card, "Ferramentas, Mesas Virtuais e Comunidade")
+        sec = _CollapsibleSection(card, t("systems.dnd5e.sec.tools_vtt"))
         self._link(sec.content, "D&D Beyond (plataforma oficial)", "https://www.dndbeyond.com")
         self._link(sec.content, "Roll20 - Mesa Virtual", "https://roll20.net")
         self._link(sec.content, "Foundry VTT", "https://foundryvtt.com")
@@ -212,11 +213,11 @@ class SystemsPanel(ttk.Frame):
     # ------------------------------------------------------------------ #
 
     def _build_tormenta20(self, parent):
-        card = ttk.LabelFrame(parent, text="  Tormenta20  ", padding=10)
+        card = ttk.LabelFrame(parent, text=t("systems.tormenta20.card"), padding=10)
         card.pack(fill="x", padx=20, pady=8)
 
         # Lore
-        sec = _CollapsibleSection(card, "Lore e Ambientacao")
+        sec = _CollapsibleSection(card, t("systems.sec.lore_setting"))
         self._info(sec.content,
             "Tormenta20 se passa em Arton, o 'Mundo de Tormenta'. Uma forca maligna chamada Tormenta "
             "(tempestade de energia caotica e purpura) ameaca consumir o mundo pelas bordas do mapa. "
@@ -232,7 +233,7 @@ class SystemsPanel(ttk.Frame):
         self._link(sec.content, "Historia de Arton (Wiki)", "https://tormenta.fandom.com/pt/wiki/Historia_de_Arton")
 
         # Regras
-        sec = _CollapsibleSection(card, "Regras e Mecanicas")
+        sec = _CollapsibleSection(card, t("systems.sec.rules_mechanics"))
         self._info(sec.content,
             "Tormenta20 usa d20 como base, com diferencas do D&D 5e: "
             "usa Pontos de Magia (PM) no lugar de slots de magia - cada magia tem um custo em PM. "
@@ -247,7 +248,7 @@ class SystemsPanel(ttk.Frame):
         self._link(sec.content, "Regras de Combate (Wiki)", "https://tormenta.fandom.com/pt/wiki/Combate_(T20)")
 
         # Classes
-        sec = _CollapsibleSection(card, "Classes")
+        sec = _CollapsibleSection(card, t("systems.tormenta20.sec.classes"))
         self._info(sec.content,
             "15 classes base em Tormenta20: "
             "Arcanista (mago generalista), Barbaro (furia), Bardo (versatil e social), "
@@ -261,7 +262,7 @@ class SystemsPanel(ttk.Frame):
         self._link(sec.content, "Construtor de personagem T20 (Fichas.app)", "https://fichas.app")
 
         # Racas
-        sec = _CollapsibleSection(card, "Racas de Arton")
+        sec = _CollapsibleSection(card, t("systems.tormenta20.sec.races"))
         self._info(sec.content,
             "Racas unicas de Arton alem das classicas (Humano, Elfo, Anao):\n"
             "- Dahllan: filhos das plantas, se tornam arvores ao morrer\n"
@@ -275,7 +276,7 @@ class SystemsPanel(ttk.Frame):
         self._link(sec.content, "Racas (Wiki Tormenta)", "https://tormenta.fandom.com/pt/wiki/Categoria:Ra%C3%A7as_(T20)")
 
         # Deuses
-        sec = _CollapsibleSection(card, "Deuses e Religiao")
+        sec = _CollapsibleSection(card, t("systems.tormenta20.sec.gods"))
         self._info(sec.content,
             "O panteao de Arton e rico e ativo - os deuses interferem diretamente no mundo:\n"
             "- Azgher: deus do Sol, luz e fogo\n"
@@ -291,7 +292,7 @@ class SystemsPanel(ttk.Frame):
         self._link(sec.content, "Panteao de Arton (Wiki)", "https://tormenta.fandom.com/pt/wiki/Deuses_de_Arton")
 
         # Comunidade
-        sec = _CollapsibleSection(card, "Comunidade e Ferramentas")
+        sec = _CollapsibleSection(card, t("systems.tormenta20.sec.community"))
         self._link(sec.content, "Tormenta no Reddit (PT)", "https://www.reddit.com/r/Tormenta/")
         self._link(sec.content, "RPG Brasil Reddit (comunidade geral)", "https://www.reddit.com/r/rpg_brasil/")
         self._link(sec.content, "Loja Jamboe - livros digitais T20", "https://www.jamboeditora.com.br/categoria/tormenta20/")
@@ -302,11 +303,11 @@ class SystemsPanel(ttk.Frame):
     # ------------------------------------------------------------------ #
 
     def _build_warhammer40k(self, parent):
-        card = ttk.LabelFrame(parent, text="  Warhammer 40.000 RPG  ", padding=10)
+        card = ttk.LabelFrame(parent, text=t("systems.warhammer.card"), padding=10)
         card.pack(fill="x", padx=20, pady=8)
 
         # Lore universo
-        sec = _CollapsibleSection(card, "Lore e Universo 40k")
+        sec = _CollapsibleSection(card, t("systems.warhammer.sec.lore"))
         self._info(sec.content,
             "O universo de Warhammer 40.000 se passa no ano 40.999 em uma galaxia em guerra permanente. "
             "O Imperium da Humanidade governa milhoes de planetas sob a tutela do Imperador Eterno, "
@@ -323,7 +324,7 @@ class SystemsPanel(ttk.Frame):
         self._link(sec.content, "Reddit r/Warhammer40k", "https://www.reddit.com/r/Warhammer40k/")
 
         # Horus Heresy
-        sec = _CollapsibleSection(card, "Horus Heresy - A Grande Traicao (M30-31)")
+        sec = _CollapsibleSection(card, t("systems.warhammer.sec.horus"))
         self._info(sec.content,
             "A Horus Heresy e o evento mais catastrofico da historia do Imperium, ocorrido 10.000 anos "
             "antes do presente do jogo. Horus Lupercal, o Primarca mais amado do Imperador e "
@@ -341,7 +342,7 @@ class SystemsPanel(ttk.Frame):
         self._link(sec.content, "Assedio de Terra - Wiki", "https://warhammer40k.fandom.com/wiki/Siege_of_Terra")
 
         # RPGs do universo
-        sec = _CollapsibleSection(card, "Os RPGs do Universo 40k")
+        sec = _CollapsibleSection(card, t("systems.warhammer.sec.rpgs"))
         self._info(sec.content,
             "Existem varios RPGs oficiais ambientados no universo 40k, todos jogaveis online sem miniaturas:\n\n"
             "WRATH & GLORY (atual, Cubicle 7):\n"
@@ -368,7 +369,7 @@ class SystemsPanel(ttk.Frame):
         self._link(sec.content, "Todos os RPGs 40k FFG (legado)", "https://www.fantasyflightgames.com/en/products/#/universe/12/")
 
         # Sistema de regras
-        sec = _CollapsibleSection(card, "Sistema de Regras - Wrath & Glory e Dark Heresy")
+        sec = _CollapsibleSection(card, t("systems.warhammer.sec.rules"))
         self._info(sec.content,
             "WRATH & GLORY - Pool de d6:\n"
             "Cada acao usa um numero de d6 igual ao Atributo + Habilidade relevante. "
@@ -388,7 +389,7 @@ class SystemsPanel(ttk.Frame):
         self._link(sec.content, "Dark Heresy 2e - Regras e Errata (FFG)", "https://www.fantasyflightgames.com/en/products/dark-heresy-second-edition/")
 
         # Faccoes
-        sec = _CollapsibleSection(card, "Principais Faccoes do Universo")
+        sec = _CollapsibleSection(card, t("systems.warhammer.sec.factions"))
         self._info(sec.content,
             "IMPERIUM DA HUMANIDADE:\n"
             "- Adeptus Astartes (Space Marines): super-soldados geneticamente modificados em Chapters\n"
@@ -412,7 +413,7 @@ class SystemsPanel(ttk.Frame):
         self._link(sec.content, "Inquisicao - Wiki", "https://warhammer40k.fandom.com/wiki/Inquisition")
 
         # Comunidade
-        sec = _CollapsibleSection(card, "Comunidade e Recursos Online")
+        sec = _CollapsibleSection(card, t("systems.warhammer.sec.community"))
         self._link(sec.content, "Reddit r/40krpg (RPG online 40k)", "https://www.reddit.com/r/40krpg/")
         self._link(sec.content, "Reddit r/Warhammer40k", "https://www.reddit.com/r/Warhammer40k/")
         self._link(sec.content, "Reddit r/HorusHeresy", "https://www.reddit.com/r/HorusHeresy/")
@@ -424,10 +425,10 @@ class SystemsPanel(ttk.Frame):
     # ------------------------------------------------------------------ #
 
     def _build_never_going_home(self, parent):
-        card = ttk.LabelFrame(parent, text="  Never Going Home  ", padding=10)
+        card = ttk.LabelFrame(parent, text=t("systems.ngh.card"), padding=10)
         card.pack(fill="x", padx=20, pady=8)
 
-        sec = _CollapsibleSection(card, "Lore e Ambientacao")
+        sec = _CollapsibleSection(card, t("systems.sec.lore_setting"))
         self._info(sec.content,
             "Never Going Home e um RPG indie de horror sobrenatural ambientado na Primeira Guerra Mundial "
             "(1914-1918). Os personagens sao soldados consumidos pela guerra e pelo Alem — entidades "
@@ -440,34 +441,34 @@ class SystemsPanel(ttk.Frame):
             "em escala humana. O jogo usa o horror pessoal e nao o combate heroico como motor narrativo."
         )
 
-        sec = _CollapsibleSection(card, "Mecanicas Centrais")
-        self._subtitle(sec.content, "Pool de d6")
+        sec = _CollapsibleSection(card, t("systems.sec.core_mechanics"))
+        self._subtitle(sec.content, t("systems.sub.d6_pool"))
         self._info(sec.content,
             "Role um numero de d6 igual ao Atributo + Especialidade relevante. "
             "Cada dado mostrando 4, 5 ou 6 conta como um Sucesso. "
             "1 sucesso: resultado parcial. 2+: sucesso pleno."
         )
-        self._subtitle(sec.content, "Atributos")
+        self._subtitle(sec.content, t("systems.sub.attributes"))
         self._info(sec.content,
             "Fisico — forca e resistencia corporal\n"
             "Mental — raciocinio e presenca de espirito\n"
             "Social — persuasao e carisma\n"
             "Espiritual — conexao com o Alem e resistencia ao horror"
         )
-        self._subtitle(sec.content, "Scars (Cicatrizes)")
+        self._subtitle(sec.content, t("systems.sub.scars"))
         self._info(sec.content,
             "Cada trauma fisico ou psicologico deixa uma Scar. As Scars sao mecanicas: "
             "podem dar bonus situacionais mas tambem impor penalidades. "
             "Acumular Scars e a unica forma de 'progredir' — voce fica mais poderoso mas menos humano."
         )
-        self._subtitle(sec.content, "Manifestacoes")
+        self._subtitle(sec.content, t("systems.sub.manifestations"))
         self._info(sec.content,
             "Ao ganhar Scars suficientes, os personagens desenvolvem Manifestacoes do Alem — "
             "dons sobrenaturais ligados ao trauma. Ex: sentir o medo alheio, ver os mortos, "
             "ignorar dor fisica. Sao poderes malditos, nao escolhidos."
         )
 
-        sec = _CollapsibleSection(card, "Links e Recursos")
+        sec = _CollapsibleSection(card, t("systems.sec.links_resources"))
         self._link(sec.content, "Site oficial — Wet Ink Games", "https://wetinkgames.com/never-going-home/")
         self._link(sec.content, "Never Going Home no Itch.io", "https://wetinkgames.itch.io/never-going-home")
 
@@ -476,10 +477,10 @@ class SystemsPanel(ttk.Frame):
     # ------------------------------------------------------------------ #
 
     def _build_apocalypse_world(self, parent):
-        card = ttk.LabelFrame(parent, text="  Apocalypse World (PbtA)  ", padding=10)
+        card = ttk.LabelFrame(parent, text=t("systems.aw.card"), padding=10)
         card.pack(fill="x", padx=20, pady=8)
 
-        sec = _CollapsibleSection(card, "Lore e Ambientacao")
+        sec = _CollapsibleSection(card, t("systems.sec.lore_setting"))
         self._info(sec.content,
             "Apocalypse World, de Vincent Baker (2010), fundou o movimento Powered by the Apocalypse (PbtA). "
             "O cenario e um pos-apocalipse deliberadamente vago: nao importa o que destruiu o mundo, "
@@ -487,32 +488,32 @@ class SystemsPanel(ttk.Frame):
             "PbtA influenciou dezenas de jogos: Dungeon World, Masks, Monster of the Week, Blades in the Dark."
         )
 
-        sec = _CollapsibleSection(card, "Mecanicas: Moves")
-        self._subtitle(sec.content, "Rolagem basica")
+        sec = _CollapsibleSection(card, t("systems.aw.sec.mechanics_moves"))
+        self._subtitle(sec.content, t("systems.sub.basic_roll"))
         self._info(sec.content,
             "Role 2d6 + Stat relevante (Cool, Hard, Hot, Sharp ou Weird).\n"
             "10+: Sucesso pleno.\n"
             "7-9: Sucesso parcial — voce consegue, mas com custo ou escolha dificil.\n"
             "6-: Falha — o MC faz um Move. A historia avanca de qualquer jeito."
         )
-        self._subtitle(sec.content, "Moves")
+        self._subtitle(sec.content, t("systems.sub.moves"))
         self._info(sec.content,
             "Moves sao acoes com gatilhos narrativos: 'Quando voce age sob pressao, role +Cool.' "
             "Moves basicos: Seize by Force, Go Aggro, Act Under Fire, Read a Person, "
             "Read a Sitch, Open Brain (Psychic Maelstrom), Manipulate, Help/Interfere, Barter."
         )
-        self._subtitle(sec.content, "Playbooks")
+        self._subtitle(sec.content, t("systems.sub.playbooks"))
         self._info(sec.content,
             "Battlebabe, Gunlugger, Hardholder, Hocus, Maestro D, Operator, Savvyhead, Skinner. "
             "Cada Playbook tem Moves exclusivos e define a relacao do personagem com o mundo e o poder."
         )
-        self._subtitle(sec.content, "MC — Mestre de Cerimonias")
+        self._subtitle(sec.content, t("systems.sub.mc"))
         self._info(sec.content,
             "O MC nao rola dados. Usa Fronts (ameacas com Clocks) e faz Moves apenas em falhas (6-). "
             "Principio central: 'Be a fan of the characters, not their enemy.'"
         )
 
-        sec = _CollapsibleSection(card, "Links e Recursos")
+        sec = _CollapsibleSection(card, t("systems.sec.links_resources"))
         self._link(sec.content, "Site oficial — Apocalypse World", "http://apocalypse-world.com/")
         self._link(sec.content, "PbtA Wiki", "https://pbta.wiki/")
         self._link(sec.content, "Reddit r/PBtA", "https://www.reddit.com/r/PBtA/")
@@ -523,10 +524,10 @@ class SystemsPanel(ttk.Frame):
     # ------------------------------------------------------------------ #
 
     def _build_vampire(self, parent):
-        card = ttk.LabelFrame(parent, text="  Vampire: The Masquerade (V5)  ", padding=10)
+        card = ttk.LabelFrame(parent, text=t("systems.vtm.card"), padding=10)
         card.pack(fill="x", padx=20, pady=8)
 
-        sec = _CollapsibleSection(card, "Lore: O Mundo das Trevas")
+        sec = _CollapsibleSection(card, t("systems.vtm.sec.lore"))
         self._info(sec.content,
             "Vampire: The Masquerade (White Wolf / Paradox) e um RPG de horror pessoal no Mundo das Trevas "
             "— uma versao sombria da realidade moderna. Voce e um vampiro (Kindred): imortal, poderoso, "
@@ -538,8 +539,8 @@ class SystemsPanel(ttk.Frame):
             "A politica vampirica e dominada pela Camarilla e pelos Anarquistas."
         )
 
-        sec = _CollapsibleSection(card, "Clas e Disciplines (V5)")
-        self._subtitle(sec.content, "Clas da Camarilla")
+        sec = _CollapsibleSection(card, t("systems.vtm.sec.clans"))
+        self._subtitle(sec.content, t("systems.sub.camarilla_clans"))
         self._info(sec.content,
             "Brujah: Potence, Celerity, Presence — rebeldes apaixonados\n"
             "Gangrel: Animalism, Fortitude, Protean — selvagens nomades\n"
@@ -550,15 +551,15 @@ class SystemsPanel(ttk.Frame):
             "Ventrue: Dominate, Fortitude, Presence — aristocratas dominadores"
         )
 
-        sec = _CollapsibleSection(card, "Mecanicas V5")
-        self._subtitle(sec.content, "Hunger Dice")
+        sec = _CollapsibleSection(card, t("systems.vtm.sec.mechanics"))
+        self._subtitle(sec.content, t("systems.sub.hunger_dice"))
         self._info(sec.content,
             "A Fome (Hunger 1-5) substitui dados normais por Hunger Dice. "
             "Hunger Die com 1 = Bestial Failure (a Besta assume o controle). "
             "Dois 10s = Messy Critical (sucesso brutal e bestial). "
             "Reduzir Hunger exige beber sangue — colocando a Mascara em risco."
         )
-        self._subtitle(sec.content, "Humanidade")
+        self._subtitle(sec.content, t("systems.sub.humanity"))
         self._info(sec.content,
             "Humanity (0-10) mede o quanto o vampiro ainda e humano. "
             "Atos de monstruosidade triggerram testes de Stain que reduzem Humanity. "
@@ -566,7 +567,7 @@ class SystemsPanel(ttk.Frame):
             "Recuperar Humanity exige mudancas narrativas profundas."
         )
 
-        sec = _CollapsibleSection(card, "Links e Recursos")
+        sec = _CollapsibleSection(card, t("systems.sec.links_resources"))
         self._link(sec.content, "World of Darkness oficial", "https://www.worldofdarkness.com/")
         self._link(sec.content, "Reddit r/VtM", "https://www.reddit.com/r/vtm/")
         self._link(sec.content, "V5 Wiki — Fandom", "https://whitewolf.fandom.com/wiki/Vampire:_The_Masquerade_(5th_Edition)")
@@ -576,10 +577,10 @@ class SystemsPanel(ttk.Frame):
     # ------------------------------------------------------------------ #
 
     def _build_deadlands(self, parent):
-        card = ttk.LabelFrame(parent, text="  Deadlands: The Weird West  ", padding=10)
+        card = ttk.LabelFrame(parent, text=t("systems.deadlands.card"), padding=10)
         card.pack(fill="x", padx=20, pady=8)
 
-        sec = _CollapsibleSection(card, "Lore: O Weird West")
+        sec = _CollapsibleSection(card, t("systems.deadlands.sec.lore"))
         self._info(sec.content,
             "Deadlands e um RPG de faroeste sobrenatural de Shane Lacy Hensley (1996), pela Pinnacle. "
             "Ambientado em 1879 num EUA alternativo onde a Guerra Civil ainda nao terminou, "
@@ -587,13 +588,13 @@ class SystemsPanel(ttk.Frame):
             "alimenta uma revolucao tecnologica torta. Horror pulp americano com acao cinematografica."
         )
 
-        sec = _CollapsibleSection(card, "Mecanicas: Savage Worlds")
-        self._subtitle(sec.content, "Sistema Savage Worlds Adventure Edition")
+        sec = _CollapsibleSection(card, t("systems.deadlands.sec.mechanics"))
+        self._subtitle(sec.content, t("systems.sub.swade"))
         self._info(sec.content,
             "Cada Traito tem um dado (d4 a d12). Wild Cards (PCs) rolam tambem um Wild Die (d6) "
             "e usam o maior resultado. Target Number: 4. Cada 4 acima = 1 Raise (sucesso extra)."
         )
-        self._subtitle(sec.content, "Arcanos Sobrenaturais")
+        self._subtitle(sec.content, t("systems.sub.arcanos"))
         self._info(sec.content,
             "Hucksters — feiticeiros que jogam cartas com o Diabo para lancar Hexes.\n"
             "Shamans — poderes espirituais de tradicoes nativas americanas.\n"
@@ -601,13 +602,13 @@ class SystemsPanel(ttk.Frame):
             "Mad Scientists — inventores de dispositivos absurdos com ghost rock.\n"
             "Harrowed — mortos-vivos controlados por uma entidade boa, lutando contra a natureza bestial."
         )
-        self._subtitle(sec.content, "Iniciativa com Cartas")
+        self._subtitle(sec.content, t("systems.sub.card_initiative"))
         self._info(sec.content,
             "Iniciativa determinada por cartas de baralho. Jokers valem acao extra. "
             "O baralho cria momentos imprevistos e cinematograficos."
         )
 
-        sec = _CollapsibleSection(card, "Links e Recursos")
+        sec = _CollapsibleSection(card, t("systems.sec.links_resources"))
         self._link(sec.content, "Pinnacle Entertainment — Deadlands", "https://peginc.com/deadlands/")
         self._link(sec.content, "Reddit r/deadlands", "https://www.reddit.com/r/deadlands/")
         self._link(sec.content, "Deadlands Wiki — Fandom", "https://deadlands.fandom.com/wiki/Deadlands_Wiki")
@@ -617,10 +618,10 @@ class SystemsPanel(ttk.Frame):
     # ------------------------------------------------------------------ #
 
     def _build_blades(self, parent):
-        card = ttk.LabelFrame(parent, text="  Blades in the Dark  ", padding=10)
+        card = ttk.LabelFrame(parent, text=t("systems.blades.card"), padding=10)
         card.pack(fill="x", padx=20, pady=8)
 
-        sec = _CollapsibleSection(card, "Lore: Doskvol")
+        sec = _CollapsibleSection(card, t("systems.blades.sec.lore"))
         self._info(sec.content,
             "Blades in the Dark (John Harper, 2017) e um RPG de heist urbano em Doskvol — "
             "cidade industrial de fantasia vitoriana rodeada por raios eletricos que contem fantasmas. "
@@ -629,8 +630,8 @@ class SystemsPanel(ttk.Frame):
             "para ganhar dinheiro e reputacao em meio a facoes rivais perigosas."
         )
 
-        sec = _CollapsibleSection(card, "Mecanicas Centrais")
-        self._subtitle(sec.content, "Rolagem de Acao")
+        sec = _CollapsibleSection(card, t("systems.sec.core_mechanics"))
+        self._subtitle(sec.content, t("systems.sub.action_roll"))
         self._info(sec.content,
             "Role um pool de d6 (valor da Acao). Use o dado mais alto:\n"
             "6: Sucesso pleno.\n"
@@ -638,32 +639,32 @@ class SystemsPanel(ttk.Frame):
             "1-3: Falha — as coisas pioram.\n"
             "Zero dados: Role 2d6, use o menor."
         )
-        self._subtitle(sec.content, "Posicao e Efeito")
+        self._subtitle(sec.content, t("systems.sub.position_effect"))
         self._info(sec.content,
             "Antes de rolar, o GM define Posicao (Controlled / Risky / Desperate) e "
             "Efeito (Limited / Standard / Great). Negociados entre GM e jogador."
         )
-        self._subtitle(sec.content, "Flashbacks")
+        self._subtitle(sec.content, t("systems.sub.flashbacks"))
         self._info(sec.content,
             "Durante um Score, qualquer jogador pode declarar um Flashback: "
             "'Antes de entrar, eu preparei uma saida secreta.' "
             "Elimina a necessidade de planejar tudo antes do Score comecar. "
             "Custo: 0-2 Stress, definido pelo GM."
         )
-        self._subtitle(sec.content, "Stress e Trauma")
+        self._subtitle(sec.content, t("systems.sub.stress_trauma"))
         self._info(sec.content,
             "Personagens tem 9 pontos de Stress, gastos para resistir a consequencias ou usar habilidades. "
             "Ao encher, o personagem sofre um Trauma e vai para recuperacao. "
             "4 Traumas = personagem se aposenta da vida criminosa."
         )
-        self._subtitle(sec.content, "Playbooks")
+        self._subtitle(sec.content, t("systems.sub.playbooks"))
         self._info(sec.content,
             "Cutter (combatente) | Hound (cacador/arqueiro) | Leech (engenheiro/venenos)\n"
             "Lurk (infiltrador) | Slide (manipulador social) | Spider (estrategista)\n"
             "Whisper (ocultista — acessa o mundo fantasmagorico)"
         )
 
-        sec = _CollapsibleSection(card, "Links e Recursos")
+        sec = _CollapsibleSection(card, t("systems.sec.links_resources"))
         self._link(sec.content, "Site oficial — Blades in the Dark", "https://bladesinthedark.com/")
         self._link(sec.content, "SRD gratuito (Blades)", "https://bladesinthedark.com/greetings-scoundrel")
         self._link(sec.content, "John Harper no Itch.io", "https://johnharper.itch.io/blades-in-the-dark")

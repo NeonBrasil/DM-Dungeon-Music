@@ -618,7 +618,7 @@ class AudioManager:
         if not AudioManager._mixer_initialized:
             pygame.mixer.pre_init(frequency=44100, size=-16, channels=2, buffer=2048)
             pygame.mixer.init()
-            pygame.mixer.set_num_channels(32)
+            pygame.mixer.set_num_channels(48)  # 0-15 music, 16-31 sfx, 32-47 player
             AudioManager._mixer_initialized = True
         self._channel_offset = channel_offset
         self.tracks: dict[int, AudioTrack] = {}

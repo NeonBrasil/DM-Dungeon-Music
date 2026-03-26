@@ -14,6 +14,7 @@ from PIL import Image, ImageTk
 import random
 import math
 from src.session_manager import Session, ImageItem
+from src.i18n.translator import t
 
 
 class CanvasImage:
@@ -80,6 +81,115 @@ class Particle:
         return self.life > 0
 
 
+def _draw_dice_overlay(canvas_widget: tk.Canvas, die: str, mod: int,
+                        rolled: int, total: int, player: str = ""):
+    """Desenha um overlay de resultado de dado no canvas Tkinter."""
+    w = canvas_widget.winfo_width() or 640
+    h = canvas_widget.winfo_height() or 400
+    mod_str = f"+{mod}" if mod > 0 else (str(mod) if mod < 0 else "")
+    line1 = f"{die}{mod_str}"
+    line2 = f"= {total}"
+    line3 = f"(rolou {rolled})" + (f"  — {player}" if player else "")
+
+    tag = "dice_overlay"
+    canvas_widget.delete(tag)
+    canvas_widget.create_rectangle(
+        w // 2 - 160, h // 2 - 75,
+        w // 2 + 160, h // 2 + 75,
+        fill="#1a1a2e", outline="#7c3aed", width=3, tags=tag
+    )
+    canvas_widget.create_text(
+        w // 2, h // 2 - 42, text=line1,
+        fill="#a78bfa", font=("Segoe UI", 22, "bold"),
+        justify="center", tags=tag
+    )
+    canvas_widget.create_text(
+        w // 2, h // 2 + 2, text=line2,
+        fill="#ffd700", font=("Segoe UI", 36, "bold"),
+        justify="center", tags=tag
+    )
+    canvas_widget.create_text(
+        w // 2, h // 2 + 48, text=line3,
+        fill="#e2e8f0", font=("Segoe UI", 13),
+        justify="center", tags=tag
+    )
+
+
+class DiceRollerFrame(ttk.Frame):
+    """Barra compacta de rolagem de dados para D&D."""
+
+    DICE = ["D3", "D4", "D6", "D8", "D10", "D20", "D100"]
+
+    def __init__(self, parent_canvas):
+        super().__init__(parent_canvas)
+        # parent_canvas é PresentationCanvas ou PlayerCanvas
+        self._canvas_widget = parent_canvas
+        self._selected_die = tk.StringVar(value="D20")
+        self._modifier = tk.IntVar(value=0)
+        self._result_label = None
+        self._die_buttons: dict[str, ttk.Button] = {}
+        self._build()
+
+    def _build(self):
+        ttk.Label(self, text="Dados:").pack(side="left", padx=(4, 2))
+
+        for die in self.DICE:
+            btn = ttk.Button(
+                self, text=die, width=4,
+                command=lambda d=die: self._select_die(d)
+            )
+            btn.pack(side="left", padx=1)
+            self._die_buttons[die] = btn
+
+        ttk.Separator(self, orient="vertical").pack(side="left", fill="y", padx=6)
+        ttk.Label(self, text="Mod:").pack(side="left", padx=(2, 1))
+        ttk.Spinbox(
+            self, from_=-20, to=20, textvariable=self._modifier, width=4
+        ).pack(side="left", padx=1)
+
+        ttk.Separator(self, orient="vertical").pack(side="left", fill="y", padx=6)
+        ttk.Button(self, text="Rolar", command=self._do_roll).pack(side="left", padx=2)
+
+        self._result_label = ttk.Label(self, text="", foreground="#a78bfa")
+        self._result_label.pack(side="left", padx=8)
+
+        self._select_die("D20")
+
+    def _select_die(self, die: str):
+        self._selected_die.set(die)
+        for d, btn in self._die_buttons.items():
+            # Toggle visual — use relief to indicate selection
+            btn.configure(style="Accent.TButton" if d == die else "TButton")
+
+    def _do_roll(self):
+        die = self._selected_die.get()
+        mod = self._modifier.get()
+        sides = int(die[1:])
+        rolled = random.randint(1, sides)
+        total = rolled + mod
+        mod_str = f"+{mod}" if mod > 0 else (str(mod) if mod < 0 else "")
+        self._result_label.config(text=f"{die}{mod_str} = {total}  (rolou {rolled})")
+
+        # Overlay no canvas
+        if hasattr(self._canvas_widget, 'show_dice_overlay'):
+            self._canvas_widget.show_dice_overlay(die, mod, rolled, total)
+
+        # Broadcast pela rede
+        nm = getattr(self._canvas_widget, '_network_manager', None)
+        if nm is None:
+            return
+        player_id = getattr(nm, '_local_player_id', 'host')
+        payload = {
+            "die": die, "modifier": mod,
+            "rolled": rolled, "total": total,
+            "player": player_id,
+        }
+        if nm.is_hosting:
+            nm.broadcast("dice_result", payload)
+        elif nm.is_client:
+            nm.send_to_host("dice_roll", payload)
+
+
 class PresentationCanvas(ttk.Frame):
     """
     Frame de apresentação canvas com:
@@ -120,6 +230,9 @@ class PresentationCanvas(ttk.Frame):
         # Sessão atual (para salvar posições)
         self._current_session: Session | None = None
 
+        # Rede (opcional) – injetado via set_network_manager()
+        self._network_manager = None
+
         self._build()
         self._bind_events()
 
@@ -128,42 +241,42 @@ class PresentationCanvas(ttk.Frame):
         toolbar = ttk.Frame(self)
         toolbar.pack(fill="x", padx=5, pady=2)
 
-        ttk.Label(toolbar, text="Zoom:").pack(side="left", padx=(5, 2))
+        ttk.Label(toolbar, text=t("canvas.toolbar.zoom_label")).pack(side="left", padx=(5, 2))
         self._zoom_label = ttk.Label(toolbar, text="100%", width=5)
         self._zoom_label.pack(side="left", padx=2)
 
-        ttk.Button(toolbar, text="🔍+", width=4,
+        ttk.Button(toolbar, text=t("canvas.toolbar.zoom_in"), width=4,
                    command=lambda: self._apply_zoom(1.25)).pack(side="left", padx=1)
-        ttk.Button(toolbar, text="🔍−", width=4,
+        ttk.Button(toolbar, text=t("canvas.toolbar.zoom_out"), width=4,
                    command=lambda: self._apply_zoom(0.8)).pack(side="left", padx=1)
-        ttk.Button(toolbar, text="🔍 Reset", width=8,
+        ttk.Button(toolbar, text=t("canvas.toolbar.zoom_reset"), width=8,
                    command=self._zoom_reset).pack(side="left", padx=1)
 
         ttk.Separator(toolbar, orient="vertical").pack(side="left", fill="y", padx=5)
 
-        ttk.Label(toolbar, text="Camada:").pack(side="left", padx=(5, 2))
-        ttk.Button(toolbar, text="↑ Frente", width=8,
+        ttk.Label(toolbar, text=t("canvas.toolbar.layer_label")).pack(side="left", padx=(5, 2))
+        ttk.Button(toolbar, text=t("canvas.toolbar.bring_forward"), width=8,
                    command=self._bring_forward).pack(side="left", padx=1)
-        ttk.Button(toolbar, text="↓ Trás", width=8,
+        ttk.Button(toolbar, text=t("canvas.toolbar.send_backward"), width=8,
                    command=self._send_backward).pack(side="left", padx=1)
-        ttk.Button(toolbar, text="⊤ Topo", width=8,
+        ttk.Button(toolbar, text=t("canvas.toolbar.bring_top"), width=8,
                    command=self._bring_to_top).pack(side="left", padx=1)
-        ttk.Button(toolbar, text="⊥ Fundo", width=8,
+        ttk.Button(toolbar, text=t("canvas.toolbar.send_bottom"), width=8,
                    command=self._send_to_bottom).pack(side="left", padx=1)
 
         ttk.Separator(toolbar, orient="vertical").pack(side="left", fill="y", padx=5)
 
-        ttk.Button(toolbar, text="🖼 Centralizar", width=10,
+        ttk.Button(toolbar, text=t("canvas.toolbar.center"), width=10,
                    command=self._center_view).pack(side="left", padx=1)
 
         ttk.Separator(toolbar, orient="vertical").pack(side="left", fill="y", padx=5)
 
-        ttk.Button(toolbar, text="💾 Salvar Posições", width=14,
+        ttk.Button(toolbar, text=t("canvas.toolbar.save_positions"), width=14,
                    command=self._save_positions).pack(side="left", padx=1)
 
         ttk.Separator(toolbar, orient="vertical").pack(side="left", fill="y", padx=5)
 
-        ttk.Label(toolbar, text="Escala:").pack(side="left", padx=(5, 2))
+        ttk.Label(toolbar, text=t("canvas.toolbar.scale_label")).pack(side="left", padx=(5, 2))
         self._scale_var = tk.IntVar(value=100)
         self._scale_spin = ttk.Spinbox(
             toolbar, from_=5, to=1000, textvariable=self._scale_var,
@@ -191,7 +304,7 @@ class PresentationCanvas(ttk.Frame):
         # Texto padrão
         self.default_text = self.canvas.create_text(
             640, 360,
-            text="⚔️ DM - Dungeon Music ⚔️\n\nAguardando o Mestre...",
+            text=t("canvas.default_text"),
             fill=self.TEXT_COLOR, font=("Segoe UI", 24, "bold"),
             justify="center"
         )
@@ -309,6 +422,7 @@ class PresentationCanvas(ttk.Frame):
         """Finaliza drag."""
         self._drag_data = {"active": False, "x": 0, "y": 0, "image": None}
         self.canvas.config(cursor="arrow")
+        self._broadcast_canvas_state()
 
     def _on_right_press(self, event):
         """Clique direito: inicia pan do canvas."""
@@ -353,6 +467,7 @@ class PresentationCanvas(ttk.Frame):
             img.img_item.scale = img.scale
             self._redraw()
             self._update_info()
+            self._broadcast_canvas_state()
 
     def _on_delete_key(self, event):
         """Delete: oculta a imagem selecionada da apresentação."""
@@ -362,6 +477,7 @@ class PresentationCanvas(ttk.Frame):
             self._selected_image = None
             self._info_label.config(text="")
             self._redraw()
+            self._broadcast_canvas_state()
 
     def _on_resize(self, event):
         """Recentraliza o texto padrão ao redimensionar."""
@@ -419,6 +535,7 @@ class PresentationCanvas(ttk.Frame):
                 self._selected_image.img_item.scale = self._selected_image.scale
                 self._redraw()
                 self._update_info()
+                self._broadcast_canvas_state()
             except (tk.TclError, ValueError):
                 pass
 
@@ -432,6 +549,7 @@ class PresentationCanvas(ttk.Frame):
             self._selected_image.img_item.scale = self._selected_image.scale
             self._redraw()
             self._update_info()
+            self._broadcast_canvas_state()
 
     def _reset_image_scale(self):
         """Reseta escala da imagem selecionada para 100%."""
@@ -453,6 +571,7 @@ class PresentationCanvas(ttk.Frame):
             self._sort_by_z_order()
             self._redraw()
             self._update_info()
+            self._broadcast_canvas_state()
 
     def _send_backward(self):
         """Move imagem selecionada uma camada para trás."""
@@ -461,6 +580,7 @@ class PresentationCanvas(ttk.Frame):
             self._sort_by_z_order()
             self._redraw()
             self._update_info()
+            self._broadcast_canvas_state()
 
     def _bring_to_top(self):
         """Move imagem selecionada para a camada mais alta."""
@@ -470,6 +590,7 @@ class PresentationCanvas(ttk.Frame):
             self._sort_by_z_order()
             self._redraw()
             self._update_info()
+            self._broadcast_canvas_state()
 
     def _send_to_bottom(self):
         """Move imagem selecionada para a camada mais baixa."""
@@ -479,6 +600,7 @@ class PresentationCanvas(ttk.Frame):
             self._sort_by_z_order()
             self._redraw()
             self._update_info()
+            self._broadcast_canvas_state()
 
     def _sort_by_z_order(self):
         """Ordena a lista de imagens por z-order (fundo primeiro)."""
@@ -819,6 +941,41 @@ class PresentationCanvas(ttk.Frame):
         self.particles.append(
             Particle(x, y, vx, vy, life, emitter["color"], size)
         )
+
+    # ═══════════════════════════════════════
+    # Rede / Multiplayer
+    # ═══════════════════════════════════════
+
+    def set_network_manager(self, network_manager):
+        """Injeta o NetworkManager para sincronizar estado do canvas."""
+        self._network_manager = network_manager
+
+    def _serialize_canvas(self) -> list:
+        """Serializa estado do canvas para broadcast."""
+        return [
+            {
+                "name": img.img_item.name,
+                "file_path": img.img_item.file_path,
+                "x": img.x,
+                "y": img.y,
+                "scale": img.scale,
+                "z_order": img.z_order,
+            }
+            for img in self._canvas_images
+        ]
+
+    def _broadcast_canvas_state(self):
+        """Envia estado atual do canvas para jogadores (apenas se hospedando)."""
+        nm = self._network_manager
+        if nm is None or not nm.is_hosting:
+            return
+        nm.broadcast("canvas_update", {"images": self._serialize_canvas()})
+
+    def show_dice_overlay(self, die: str, mod: int, rolled: int, total: int,
+                           player: str = ""):
+        """Exibe overlay de resultado de dado no canvas por 3 segundos."""
+        _draw_dice_overlay(self.canvas, die, mod, rolled, total, player)
+        self.after(3000, lambda: self.canvas.delete("dice_overlay"))
 
     def destroy(self):
         self._animating = False

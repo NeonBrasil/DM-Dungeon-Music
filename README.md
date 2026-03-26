@@ -1,6 +1,6 @@
 # ⚔️ DM - Dungeon Music
 
-Ferramenta de mesa para **Mestres de RPG** (Dungeon Masters). Gerencie músicas, efeitos sonoros, imagens e apresentações — tudo em um só lugar.
+Desktop toolkit for **RPG Game Masters**. Manage music, sound effects, images, presentation canvas, and (beta) online sessions in one place.
 
 ![Python](https://img.shields.io/badge/Python-3.10%2B-blue?logo=python&logoColor=white)
 ![Pygame](https://img.shields.io/badge/Pygame-2.5%2B-green)
@@ -8,148 +8,135 @@ Ferramenta de mesa para **Mestres de RPG** (Dungeon Masters). Gerencie músicas,
 
 ---
 
-## 🎯 Funcionalidades
+## 🎯 Features
 
-| Recurso | Descrição |
-|---------|-----------|
-| 🎵 **Player Multi-Faixa** | Reproduza múltiplas músicas simultaneamente com controle individual |
-| 💥 **Efeitos Sonoros** | Aba dedicada para SFX (espadas, explosões, ambientes...) |
-| 🖼️ **Gerenciamento de Imagens** | Organize imagens por sessão de jogo |
-| 🎭 **Apresentação (Canvas)** | Tela de apresentação com zoom, pan, z-order e partículas |
-| 🎛️ **Efeitos de Áudio** | Controle de velocidade e reverb por faixa |
-| 🔁 **Loop & Timeline** | Seek/loop individual com timeline visual |
-| 💾 **Persistência** | Faixas e sessões salvas automaticamente entre usos |
-| ⚡ **Cache de Metadados** | Startup instantâneo após o primeiro uso |
-| ⚙️ **Sistemas de RPG** | Links para wikis de D&D 5e e sistema próprio (em breve) |
-| 🌙 **Dark Mode** | Tema escuro moderno |
+| Area | Description |
+|------|-------------|
+| 🎵 Multi-track music | Play multiple tracks with per-track volume, loop, seek, speed, and reverb |
+| 💥 Sound effects | Dedicated SFX tab for short cues (weapons, doors, ambience) |
+| 🖼️ Image sessions | Organize battle maps and handouts by session; toggle visibility |
+| 🎬 Presentation canvas | Zoom/pan, z-order, particles; share via screen share | 
+| 🌐 Online (beta) | Host/join via WebSocket with session ID + PIN; currently logs events only |
+| 💾 Persistence | Sessions and tracks auto-saved; metadata cache for fast startup |
+| 🌙 Dark theme | Modern dark UI; multilingual (pt-BR, en-US, es-ES) |
 
 ---
 
-## 📋 Requisitos
+## 📋 Requirements
 
-- **Python 3.10** ou superior
-- **Windows 10/11** (testado; pode funcionar em Linux/macOS com ajustes)
+- **Python 3.10+**
+- **Windows 10/11** tested (Linux/macOS may work with minor tweaks)
 
-### Dependências Python
+### Python dependencies
 
-| Pacote | Versão Mínima | Uso |
-|--------|---------------|-----|
-| `pygame` | 2.5.0 | Motor de áudio |
-| `Pillow` | 10.0.0 | Manipulação de imagens |
-| `mutagen` | 1.47.0 | Leitura de metadados de áudio |
-| `pyinstaller` | 6.0.0 | Geração do executável (opcional) |
+| Package | Min version | Purpose |
+|---------|-------------|---------|
+| pygame | 2.5.0 | Audio engine |
+| Pillow | 10.0.0 | Image handling |
+| mutagen | 1.47.0 | Audio metadata |
+| websockets | 12.0 | Online beta (host/join) |
+| pyinstaller | 6.0.0 | Optional: build executable |
 
----
-
-## 🚀 Instalação
-
-### 1. Clone o repositório
-
-```bash
-git clone https://github.com/SEU_USUARIO/DM-DungeonMusic.git
-cd DM-DungeonMusic
-```
-
-### 2. Crie um ambiente virtual (recomendado)
-
-```bash
-python -m venv venv
-venv\Scripts\activate
-```
-
-### 3. Instale as dependências
-
-```bash
-pip install -r requirements.txt
-```
-
-### 4. Execute o app
-
-```bash
-python main.py
-```
+Install them with `pip install -r requirements.txt`.
 
 ---
 
-## 📦 Gerar Executável (.exe)
+## 🚀 Installation
 
-Para criar um `.exe` standalone que não precisa de Python instalado:
+1. Clone the repository
+	```bash
+	git clone https://github.com/YOUR_USERNAME/DM-DungeonMusic.git
+	cd DM-DungeonMusic
+	```
+2. Create a virtual environment (recommended)
+	```bash
+	python -m venv venv
+	venv\Scripts\activate
+	```
+3. Install dependencies
+	```bash
+	pip install -r requirements.txt
+	```
+4. Run the app
+	```bash
+	python main.py
+	```
+
+---
+
+## 📦 Build the executable (.exe)
+
+Generate a standalone exe (no Python required):
 
 ```bash
 build.bat
 ```
 
-O executável será gerado em `dist/DM-DungeonMusic.exe`.
+Output: `dist/DM-DungeonMusic.exe`.
 
 ---
 
-## 🗂️ Estrutura do Projeto
+## 🗂️ Project structure
 
 ```
 DM-DungeonMusic/
-├── main.py                  # Entry point
-├── requirements.txt         # Dependências
-├── build.bat                # Script de build (PyInstaller)
-├── DM-dungeoun-music.ico    # Ícone do app
-├── DM-dungeoun-music.png    # Ícone (PNG)
+├── main.py                 # Entry point
+├── requirements.txt        # Dependencies
+├── build.bat               # PyInstaller build script
 ├── src/
-│   ├── __init__.py
-│   ├── audio_manager.py     # Motor de áudio (tracks, efeitos, cache)
-│   ├── session_manager.py   # Persistência de sessões e imagens
+│   ├── audio_manager.py    # Audio engine (tracks, FX, cache)
+│   ├── session_manager.py  # Image and audio session persistence
+│   ├── network_manager.py  # WebSocket host/join (beta)
 │   └── ui/
-│       ├── __init__.py
-│       ├── main_window.py   # Janela principal com abas
-│       ├── audio_panel.py   # Painel de música e SFX
-│       ├── image_panel.py   # Gerenciamento de imagens
-│       ├── canvas_window.py # Canvas de apresentação
-│       └── theme.py         # Tema dark mode
+│       ├── main_window.py  # Main window with tabs
+│       ├── audio_panel.py  # Music/SFX management
+│       ├── image_panel.py  # Image sessions
+│       ├── network_panel.py# Online tab UI (host/join)
+│       ├── canvas_window.py# Presentation canvas
+│       └── theme.py        # Dark theme
 ```
 
 ---
 
-## 🎮 Como Usar
+## 🎮 Usage
 
-1. **Aba Áudio** — Clique em "➕ Adicionar Música" e selecione seus arquivos de áudio. Controle play/pause, volume, loop e timeline individualmente.
+1) **Audio tab** — Add music, play/pause, loop, adjust volume/speed/reverb per track.
+2) **SFX tab** — Same controls for short sound effects.
+3) **Images tab** — Create sessions, add images, toggle which are visible.
+4) **Presentation tab** — Interactive canvas for players (zoom, pan, z-order).
+5) **Online tab (beta)** — Host starts a session (session ID + PIN). Players join with host/port/session/PIN; events are logged for now (wire to playback/map actions as next step).
 
-2. **Aba SFX** — Mesma mecânica, mas para efeitos sonoros curtos (espadas, portas, explosões).
-
-3. **Aba Imagens** — Crie sessões e adicione imagens. Marque quais ficam visíveis na apresentação.
-
-4. **Aba Apresentação** — Canvas interativo para seus jogadores. Arraste imagens, use zoom (scroll), pan (botão direito) e ajuste z-order.
-
-5. **Aba Sistemas** — Links rápidos para wikis de D&D 5e e criação de sistema próprio (em desenvolvimento).
-
-> 💡 **Dica:** Compartilhe a janela de Apresentação via Discord, Zoom ou OBS para seus jogadores verem!
+Pro tip: share the Presentation tab via Discord/Zoom/OBS for remote tables.
 
 ---
 
-## 🔊 Formatos Suportados
+## 🔊 Supported formats
 
-`.mp3` `.wav` `.ogg` `.flac` `.opus` `.webm` `.m4a`
-
----
-
-## 📝 Dados Locais
-
-O app salva dados em `~/.dm_dungeon_music/`:
-
-- `tracks_music.json` — Lista de faixas de música
-- `tracks_sfx.json` — Lista de efeitos sonoros
-- `cache/metadata.json` — Cache de metadados (duração, artwork)
-- `cache/artwork/` — Thumbnails em cache
+.mp3 .wav .ogg .flac .opus .webm .m4a
 
 ---
 
-## 🤝 Contribuição
+## 📝 Local data
 
-1. Fork o repositório
-2. Crie uma branch (`git checkout -b feature/minha-feature`)
-3. Commit suas mudanças (`git commit -m 'Adiciona feature X'`)
-4. Push para a branch (`git push origin feature/minha-feature`)
-5. Abra um Pull Request
+Stored under `~/.dm_dungeon_music/`:
+
+- `tracks_music.json` — Music tracks
+- `tracks_sfx.json` — Sound effects
+- `cache/metadata.json` — Metadata cache (duration, artwork)
+- `cache/artwork/` — Cached thumbnails
 
 ---
 
-## 📄 Licença
+## 🤝 Contributing
 
-Este projeto está sob a licença MIT. Veja o arquivo [LICENSE](LICENSE) para mais detalhes.
+1. Fork the repository
+2. Create a branch (`git checkout -b feature/my-feature`)
+3. Commit (`git commit -m "Add feature X"`)
+4. Push (`git push origin feature/my-feature`)
+5. Open a Pull Request
+
+---
+
+## 📄 License
+
+MIT License. See LICENSE for details.

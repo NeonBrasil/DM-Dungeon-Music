@@ -1,6 +1,6 @@
 """
 DM - Dungeon Music
-Tema visual moderno (Dark Mode).
+Tema visual — suporta múltiplos temas.
 """
 
 import tkinter as tk
@@ -8,35 +8,149 @@ from tkinter import ttk
 
 
 # ═══════════════════════════════════════
-# Paleta de cores
+# Paletas de cores por tema
 # ═══════════════════════════════════════
 
-COLORS = {
-    "bg":            "#1a1b2e",
-    "bg_alt":        "#141525",
-    "surface":       "#252641",
-    "surface_hover": "#2f3055",
-    "card":          "#2a2b47",
-    "border":        "#3d3e5c",
-
-    "primary":       "#7c3aed",
-    "primary_hover": "#6d28d9",
-    "primary_light": "#a78bfa",
-
-    "accent":        "#06b6d4",
-
-    "success":       "#22c55e",
-    "warning":       "#f59e0b",
-    "danger":        "#ef4444",
-
-    "text":          "#e2e8f0",
-    "text_muted":    "#94a3b8",
-    "text_dim":      "#64748b",
+THEMES: dict[str, dict] = {
+    "transylvania": {
+        "bg":            "#1a1b2e",
+        "bg_alt":        "#141525",
+        "surface":       "#252641",
+        "surface_hover": "#2f3055",
+        "card":          "#2a2b47",
+        "border":        "#3d3e5c",
+        "primary":       "#7c3aed",
+        "primary_hover": "#6d28d9",
+        "primary_light": "#a78bfa",
+        "accent":        "#06b6d4",
+        "success":       "#22c55e",
+        "warning":       "#f59e0b",
+        "danger":        "#ef4444",
+        "text":          "#e2e8f0",
+        "text_muted":    "#94a3b8",
+        "text_dim":      "#64748b",
+    },
+    "abyssal": {
+        "bg":            "#0a0a0a",
+        "bg_alt":        "#050505",
+        "surface":       "#161616",
+        "surface_hover": "#1f1f1f",
+        "card":          "#1a1a1a",
+        "border":        "#2a2a2a",
+        "primary":       "#3b82f6",
+        "primary_hover": "#2563eb",
+        "primary_light": "#93c5fd",
+        "accent":        "#06b6d4",
+        "success":       "#22c55e",
+        "warning":       "#f59e0b",
+        "danger":        "#ef4444",
+        "text":          "#e5e5e5",
+        "text_muted":    "#737373",
+        "text_dim":      "#404040",
+    },
+    "fog": {
+        "bg":            "#1e2028",
+        "bg_alt":        "#181a21",
+        "surface":       "#2a2d3a",
+        "surface_hover": "#333647",
+        "card":          "#252830",
+        "border":        "#3a3d4a",
+        "primary":       "#64748b",
+        "primary_hover": "#475569",
+        "primary_light": "#94a3b8",
+        "accent":        "#22d3ee",
+        "success":       "#22c55e",
+        "warning":       "#f59e0b",
+        "danger":        "#ef4444",
+        "text":          "#cbd5e1",
+        "text_muted":    "#64748b",
+        "text_dim":      "#475569",
+    },
+    "forest": {
+        "bg":            "#0d1f17",
+        "bg_alt":        "#091510",
+        "surface":       "#162a20",
+        "surface_hover": "#1f3a2c",
+        "card":          "#132418",
+        "border":        "#254d35",
+        "primary":       "#059669",
+        "primary_hover": "#047857",
+        "primary_light": "#6ee7b7",
+        "accent":        "#84cc16",
+        "success":       "#22c55e",
+        "warning":       "#f59e0b",
+        "danger":        "#ef4444",
+        "text":          "#d1fae5",
+        "text_muted":    "#6ee7b7",
+        "text_dim":      "#34d399",
+    },
+    "amber": {
+        "bg":            "#1c1612",
+        "bg_alt":        "#14110d",
+        "surface":       "#2a2017",
+        "surface_hover": "#352a1e",
+        "card":          "#241c13",
+        "border":        "#4a3820",
+        "primary":       "#d97706",
+        "primary_hover": "#b45309",
+        "primary_light": "#fcd34d",
+        "accent":        "#f97316",
+        "success":       "#22c55e",
+        "warning":       "#f59e0b",
+        "danger":        "#ef4444",
+        "text":          "#fef3c7",
+        "text_muted":    "#d97706",
+        "text_dim":      "#92400e",
+    },
+    "light": {
+        "bg":            "#f1f5f9",
+        "bg_alt":        "#e2e8f0",
+        "surface":       "#ffffff",
+        "surface_hover": "#f8fafc",
+        "card":          "#ffffff",
+        "border":        "#cbd5e1",
+        "primary":       "#7c3aed",
+        "primary_hover": "#6d28d9",
+        "primary_light": "#7c3aed",
+        "accent":        "#0891b2",
+        "success":       "#16a34a",
+        "warning":       "#d97706",
+        "danger":        "#dc2626",
+        "text":          "#0f172a",
+        "text_muted":    "#475569",
+        "text_dim":      "#94a3b8",
+    },
 }
 
+SUPPORTED_THEMES: dict[str, str] = {
+    "transylvania": "🧛 Transilvânia",
+    "abyssal":      "⬛ Abissal",
+    "fog":          "🌫️ Névoa",
+    "forest":       "🌲 Floresta",
+    "amber":        "🔥 Âmbar",
+    "light":        "☀️ Claro",
+}
 
-def apply_theme(root: tk.Tk):
-    """Aplica tema dark moderno a toda a aplicação."""
+# Tema corrente (pode ser alterado via set_theme antes do apply_theme)
+_current_theme: str = "transylvania"
+
+# COLORS é o dict mutável usado pelo resto da aplicação
+COLORS: dict = dict(THEMES["transylvania"])
+
+
+def set_theme(name: str) -> None:
+    """Define qual tema será aplicado na próxima chamada a apply_theme."""
+    global _current_theme
+    _current_theme = name if name in THEMES else "transylvania"
+
+
+def current_theme() -> str:
+    return _current_theme
+
+
+def apply_theme(root: tk.Tk) -> None:
+    """Aplica o tema visual atual a toda a aplicação."""
+    COLORS.update(THEMES.get(_current_theme, THEMES["transylvania"]))
 
     root.configure(bg=COLORS["bg"])
 

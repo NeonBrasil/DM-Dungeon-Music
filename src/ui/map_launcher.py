@@ -9,6 +9,7 @@ import os
 import json
 
 from src.ui.theme import COLORS
+from src.i18n.translator import t
 
 _DATA_DIR = os.path.join(os.path.expanduser("~"), ".dm_dungeon_music", "maps")
 
@@ -35,14 +36,14 @@ class MapLauncherPanel(ttk.Frame):
 
         ttk.Label(
             header,
-            text="🗺  Editor de Mapas RPG",
+            text=t("map_launcher.header_title"),
             font=("Segoe UI", 18, "bold"),
             foreground=COLORS.get("accent", "#a78bfa"),
         ).pack(anchor="w")
 
         ttk.Label(
             header,
-            text="Crie mapas de continente, cidade e dungeon com névoa de guerra, múltiplos níveis e renderização OpenGL.",
+            text=t("map_launcher.header_desc"),
             font=("Segoe UI", 9),
             foreground=COLORS.get("text_muted", "#94a3b8"),
             wraplength=600,
@@ -60,7 +61,7 @@ class MapLauncherPanel(ttk.Frame):
         left = ttk.Frame(content)
         left.grid(row=0, column=0, sticky="nsew", padx=(0, 16))
 
-        ttk.Label(left, text="Seus mapas",
+        ttk.Label(left, text=t("map_launcher.your_maps"),
                   font=("Segoe UI", 10, "bold"),
                   foreground=COLORS.get("accent", "#a78bfa")).pack(anchor="w")
 
@@ -90,9 +91,9 @@ class MapLauncherPanel(ttk.Frame):
 
         btn_row = ttk.Frame(left)
         btn_row.pack(fill="x", pady=(6, 0))
-        ttk.Button(btn_row, text="+ Novo mapa",   command=self._new_map).pack(side="left", padx=(0, 4))
-        ttk.Button(btn_row, text="⟳ Atualizar",   command=self._refresh).pack(side="left")
-        ttk.Button(btn_row, text="🗑 Excluir",     command=self._delete_map).pack(side="right")
+        ttk.Button(btn_row, text=t("map_launcher.new_map_btn"),   command=self._new_map).pack(side="left", padx=(0, 4))
+        ttk.Button(btn_row, text=t("map_launcher.refresh_btn"),   command=self._refresh).pack(side="left")
+        ttk.Button(btn_row, text=t("map_launcher.delete_btn"),     command=self._delete_map).pack(side="right")
 
         # ── Right: open buttons + feature cards ───────────────────────────
         right = ttk.Frame(content)
@@ -100,7 +101,7 @@ class MapLauncherPanel(ttk.Frame):
 
         self._selected_label = ttk.Label(
             right,
-            text="Selecione um mapa para continuar",
+            text=t("map_launcher.select_prompt"),
             font=("Segoe UI", 10),
             foreground=COLORS.get("text_muted", "#94a3b8"),
         )
@@ -109,7 +110,7 @@ class MapLauncherPanel(ttk.Frame):
         # Big primary button
         self._btn_qt = tk.Button(
             right,
-            text="🗺  Abrir Editor Avançado",
+            text=t("map_launcher.open_advanced"),
             font=("Segoe UI", 13, "bold"),
             bg=COLORS.get("accent", "#7c3aed"),
             fg="#ffffff",
@@ -126,7 +127,7 @@ class MapLauncherPanel(ttk.Frame):
         # Secondary button
         self._btn_classic = tk.Button(
             right,
-            text="Editor Clássico (Tkinter)",
+            text=t("map_launcher.open_classic"),
             font=("Segoe UI", 9),
             bg=COLORS.get("surface", "#252641"),
             fg=COLORS.get("text_muted", "#94a3b8"),
@@ -143,18 +144,18 @@ class MapLauncherPanel(ttk.Frame):
         ttk.Separator(right, orient="horizontal").pack(fill="x", pady=(0, 12))
 
         # Feature cards
-        ttk.Label(right, text="Funcionalidades do Editor Avançado",
+        ttk.Label(right, text=t("map_launcher.features_title"),
                   font=("Segoe UI", 9, "bold"),
                   foreground=COLORS.get("accent", "#a78bfa")).pack(anchor="w")
 
         features = [
-            ("☁  Névoa de Guerra",    "Revele o mapa aos poucos com pincel. Ideal para sessões ao vivo."),
-            ("🏔  Múltiplos Níveis",   "Mapa mundo → cidade → dungeon com navegação por abas."),
-            ("⚡  OpenGL (GPU)",        "Renderização acelerada por hardware. Suave mesmo com mapas grandes."),
-            ("↩  Desfazer / Refazer", "Histórico completo de ações com Ctrl+Z e Ctrl+Y."),
-            ("🔄  Rotação de itens",   "Gire terrenos, ícones e tokens com Q/E ou spinbox."),
-            ("📁  Ícones PNG",          "Importe qualquer PNG (D&D, Warhammer, etc.) como ícone de mapa."),
-            ("📐  Régua",               "Meça distâncias em unidades e dias de viagem."),
+            (t("map_launcher.feat_fog"),    t("map_launcher.feat_fog_desc")),
+            (t("map_launcher.feat_levels"), t("map_launcher.feat_levels_desc")),
+            (t("map_launcher.feat_opengl"), t("map_launcher.feat_opengl_desc")),
+            (t("map_launcher.feat_undo"),   t("map_launcher.feat_undo_desc")),
+            (t("map_launcher.feat_rotate"), t("map_launcher.feat_rotate_desc")),
+            (t("map_launcher.feat_icons"),  t("map_launcher.feat_icons_desc")),
+            (t("map_launcher.feat_ruler"),  t("map_launcher.feat_ruler_desc")),
         ]
         for icon_text, desc in features:
             row = ttk.Frame(right)
@@ -188,14 +189,14 @@ class MapLauncherPanel(ttk.Frame):
         name = self._listbox.get(sel[0]) if sel else None
         if name:
             self._selected_label.config(
-                text=f'Mapa selecionado: "{name}"',
+                text=t("map_launcher.selected", name=name),
                 foreground=COLORS.get("accent", "#a78bfa"),
             )
             self._btn_qt["state"]      = "normal"
             self._btn_classic["state"] = "normal"
         else:
             self._selected_label.config(
-                text="Selecione um mapa para continuar",
+                text=t("map_launcher.select_prompt"),
                 foreground=COLORS.get("text_muted", "#94a3b8"),
             )
             self._btn_qt["state"]      = "disabled"
@@ -208,7 +209,7 @@ class MapLauncherPanel(ttk.Frame):
     # ── Actions ───────────────────────────────────────────────────────────────
 
     def _new_map(self):
-        name = simpledialog.askstring("Novo mapa", "Nome do mapa:", parent=self)
+        name = simpledialog.askstring(t("map_launcher.new_map_title"), t("map_launcher.new_map_prompt"), parent=self)
         if not name or not name.strip():
             return
         name = name.strip().replace(" ", "_")
@@ -239,8 +240,8 @@ class MapLauncherPanel(ttk.Frame):
         name = self._selected_name()
         if not name:
             return
-        ok = messagebox.askyesno("Excluir mapa",
-                                  f'Excluir "{name}" permanentemente?', parent=self)
+        ok = messagebox.askyesno(t("map_launcher.delete_title"),
+                                  t("map_launcher.delete_confirm", name=name), parent=self)
         if ok:
             path = os.path.join(_DATA_DIR, name + ".json")
             try:
@@ -259,14 +260,12 @@ class MapLauncherPanel(ttk.Frame):
             launch_editor(name)
         except ImportError:
             messagebox.showerror(
-                "PySide6 não encontrado",
-                "Instale o PySide6 para usar o Editor Avançado:\n\n"
-                "  pip install PySide6\n\n"
-                "Após instalar, reinicie o aplicativo.",
+                t("map_launcher.pyside6_error_title"),
+                t("map_launcher.pyside6_error_body"),
                 parent=self,
             )
         except Exception as e:
-            messagebox.showerror("Erro", str(e), parent=self)
+            messagebox.showerror(t("map_launcher.error_title"), str(e), parent=self)
 
     def _open_classic(self):
         """Abre o editor clássico Tkinter em uma janela separada."""
@@ -277,11 +276,11 @@ class MapLauncherPanel(ttk.Frame):
         try:
             from src.ui.map_panel import MapPanel
         except Exception as e:
-            messagebox.showerror("Erro", str(e), parent=self)
+            messagebox.showerror(t("map_launcher.error_title"), str(e), parent=self)
             return
 
         top = tk.Toplevel(self)
-        top.title(f"Editor Clássico — {name}")
+        top.title(t("map_launcher.classic_window_title", name=name))
         top.geometry("1150x750")
         panel = MapPanel(top)
         panel.pack(fill="both", expand=True)
