@@ -25,11 +25,19 @@ def _project_root() -> str:
 
 def launch_editor(map_name: str = ""):
     """Lança o editor de mapas PySide6 como processo separado."""
-    root = _project_root()
-    args = [sys.executable, "-m", "src.ui.map_editor.launch"]
-    if map_name:
-        args.append(map_name)
-    subprocess.Popen(args, cwd=root, close_fds=True)
+    if getattr(sys, "frozen", False):
+        # Rodando como .exe (PyInstaller) — relança o próprio exe com flag especial
+        args = [sys.executable, "--map-editor"]
+        if map_name:
+            args.append(map_name)
+        subprocess.Popen(args)
+    else:
+        # Rodando como script Python normal
+        root = _project_root()
+        args = [sys.executable, "-m", "src.ui.map_editor.launch"]
+        if map_name:
+            args.append(map_name)
+        subprocess.Popen(args, cwd=root)
 
 
 def _run(map_name: str = ""):

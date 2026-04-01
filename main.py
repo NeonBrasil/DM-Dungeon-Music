@@ -11,6 +11,14 @@ import json
 root_dir = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, root_dir)
 
+# Modo editor de mapas (lançado pelo próprio exe com flag especial)
+if "--map-editor" in sys.argv:
+    from src.ui.map_editor.launch import _run as _run_map_editor
+    _idx = sys.argv.index("--map-editor")
+    _map_name = sys.argv[_idx + 1] if _idx + 1 < len(sys.argv) else ""
+    _run_map_editor(_map_name)
+    sys.exit(0)
+
 # Carrega locale e tema ANTES de qualquer import de UI
 from src.i18n.translator import load_locale
 from src.ui.theme import set_theme
