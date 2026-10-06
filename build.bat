@@ -29,9 +29,11 @@ python -m PyInstaller --onefile ^
     --name "DM-DungeonMusic" ^
     --windowed ^
     --icon "DM-dungeoun-music.ico" ^
+    --paths "B:\conda\envs\ai-local\Library\bin" ^
     --add-data "src;src" ^
     --add-data "DM-dungeoun-music.ico;." ^
     --add-data "%WS_PATH%;websockets" ^
+    --collect-data ttkbootstrap ^
     --hidden-import pygame ^
     --hidden-import PIL ^
     --hidden-import mutagen ^
@@ -39,6 +41,7 @@ python -m PyInstaller --onefile ^
     --hidden-import mutagen.id3 ^
     --hidden-import mutagen.flac ^
     --hidden-import websockets ^
+    --hidden-import ttkbootstrap ^
     main.py
 
 echo.

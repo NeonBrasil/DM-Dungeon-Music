@@ -17,13 +17,12 @@ _DATA_DIR = os.path.join(os.path.expanduser("~"), ".dm_dungeon_music", "maps")
 class MapLauncherPanel(ttk.Frame):
     """
     Painel do tab Mapa: lista mapas existentes e abre o editor avançado (PySide6)
-    ou o editor clássico (Tkinter) com um clique.
+    com um clique.
     """
 
     def __init__(self, parent, **kwargs):
         super().__init__(parent, **kwargs)
         os.makedirs(_DATA_DIR, exist_ok=True)
-        self._classic_panel = None   # lazy-loaded
         self._build()
         self._refresh()
 
@@ -108,38 +107,15 @@ class MapLauncherPanel(ttk.Frame):
         self._selected_label.pack(anchor="w", pady=(0, 10))
 
         # Big primary button
-        self._btn_qt = tk.Button(
+        self._btn_qt = ttk.Button(
             right,
             text=t("map_launcher.open_advanced"),
-            font=("Segoe UI", 13, "bold"),
-            bg=COLORS.get("accent", "#7c3aed"),
-            fg="#ffffff",
-            activebackground=COLORS.get("accent_hover", "#6d28d9"),
-            activeforeground="#ffffff",
-            relief="flat",
+            style="Accent.TButton",
             cursor="hand2",
-            padx=20, pady=12,
             state="disabled",
             command=self._open_qt,
         )
-        self._btn_qt.pack(fill="x", pady=(0, 8))
-
-        # Secondary button
-        self._btn_classic = tk.Button(
-            right,
-            text=t("map_launcher.open_classic"),
-            font=("Segoe UI", 9),
-            bg=COLORS.get("surface", "#252641"),
-            fg=COLORS.get("text_muted", "#94a3b8"),
-            activebackground=COLORS.get("surface_hover", "#2f3055"),
-            activeforeground=COLORS.get("text", "#e2e8f0"),
-            relief="flat",
-            cursor="hand2",
-            padx=10, pady=6,
-            state="disabled",
-            command=self._open_classic,
-        )
-        self._btn_classic.pack(fill="x", pady=(0, 16))
+        self._btn_qt.pack(fill="x", pady=(0, 16))
 
         ttk.Separator(right, orient="horizontal").pack(fill="x", pady=(0, 12))
 
@@ -192,15 +168,13 @@ class MapLauncherPanel(ttk.Frame):
                 text=t("map_launcher.selected", name=name),
                 foreground=COLORS.get("accent", "#a78bfa"),
             )
-            self._btn_qt["state"]      = "normal"
-            self._btn_classic["state"] = "normal"
+            self._btn_qt["state"] = "normal"
         else:
             self._selected_label.config(
                 text=t("map_launcher.select_prompt"),
                 foreground=COLORS.get("text_muted", "#94a3b8"),
             )
-            self._btn_qt["state"]      = "disabled"
-            self._btn_classic["state"] = "disabled"
+            self._btn_qt["state"] = "disabled"
 
     def _selected_name(self) -> str | None:
         sel = self._listbox.curselection()
@@ -266,27 +240,3 @@ class MapLauncherPanel(ttk.Frame):
             )
         except Exception as e:
             messagebox.showerror(t("map_launcher.error_title"), str(e), parent=self)
-
-    def _open_classic(self):
-        """Abre o editor clássico Tkinter em uma janela separada."""
-        name = self._selected_name()
-        if not name:
-            return
-        # Lazy import to avoid loading all of map_panel at startup
-        try:
-            from src.ui.map_panel import MapPanel
-        except Exception as e:
-            messagebox.showerror(t("map_launcher.error_title"), str(e), parent=self)
-            return
-
-        top = tk.Toplevel(self)
-        top.title(t("map_launcher.classic_window_title", name=name))
-        top.geometry("1150x750")
-        panel = MapPanel(top)
-        panel.pack(fill="both", expand=True)
-        # Try to load the map
-        try:
-            panel._map_var.set(name)
-            panel._on_map_selected()
-        except Exception:
-            pass

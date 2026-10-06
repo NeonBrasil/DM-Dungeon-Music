@@ -118,8 +118,8 @@ class PlayerCanvas(ttk.Frame):
             self._waiting_id = None
 
         for item in sorted(images_data, key=lambda d: d.get("z_order", 0)):
-            fp = item.get("file_path", "")
-            if not fp or not os.path.isfile(fp):
+            fp = self._resolve_visual_file(item)
+            if not fp:
                 continue
             try:
                 pil_img = Image.open(fp)
@@ -137,6 +137,29 @@ class PlayerCanvas(ttk.Frame):
                                          tags="img_item")
             except Exception as exc:
                 print(f"[PlayerCanvas] Erro ao carregar {fp}: {exc}")
+
+    def _resolve_visual_file(self, item: dict) -> str:
+        fp = item.get("file_path", "")
+        if fp and os.path.isfile(fp):
+            return fp
+        shared_id = os.path.basename(item.get("shared_id", ""))
+        if not shared_id:
+            return ""
+        cache_dir = os.path.join(os.path.expanduser("~"), ".dm_dungeon_music", "player_cache", "visuals")
+        os.makedirs(cache_dir, exist_ok=True)
+        local_path = os.path.join(cache_dir, shared_id)
+        if os.path.isfile(local_path):
+            return local_path
+        nm = self._network_manager
+        if nm is None:
+            return ""
+        host = nm._last_connected_host
+        url = f"http://{host}:8766/shared/{shared_id}"
+        try:
+            urllib_request.urlretrieve(url, local_path)
+            return local_path
+        except Exception:
+            return ""
 
     # ── Dice overlay ────────────────────────────────────────────────────────
     def show_dice_overlay(self, die: str, mod: int, rolled: int, total: int,
@@ -157,7 +180,8 @@ class PlayerWindow(tk.Toplevel):
 
         self._network = network_manager
         self._audio = audio_manager
-        # filename → AudioTrack (add_track retorna AudioTrack, não int)
+        self._local_player_id: str = ""  # preenchido pelo evento assigned_id
+        self._tracks_lock = threading.Lock()
         self._active_tracks: dict[str, AudioTrack] = {}
         self._active_sfx: dict[str, AudioTrack] = {}
 
@@ -211,6 +235,10 @@ class PlayerWindow(tk.Toplevel):
     # ── Network messages ────────────────────────────────────────────────────
     def _on_network_message(self, payload: dict):
         event = payload.get("type")
+        if event == "assigned_id":
+            self._local_player_id = payload.get("player_id", "")
+            self._network._local_player_id = self._local_player_id
+            return
         if event in ("canvas_update", "canvas_full_sync",
                      "battlemap_update", "battlemap_full_sync"):
             images = payload.get("images", [])
@@ -249,7 +277,12 @@ class PlayerWindow(tk.Toplevel):
     def _fetch_and_play(self, filename: str, loop: bool, volume: float):
         if not filename:
             return
-        local_path = os.path.join(self._cache_dir(), filename)
+        # FIX: rejeita path traversal (ex: "../../../evil")
+        safe_name = os.path.basename(filename)
+        if not safe_name or safe_name.startswith("."):
+            return
+        local_path = os.path.join(self._cache_dir(), safe_name)
+        filename = safe_name
         if os.path.isfile(local_path):
             self._play_cached(local_path, filename, loop, volume)
             return
@@ -272,20 +305,22 @@ class PlayerWindow(tk.Toplevel):
             self.after(0, lambda: self._set_status(f"Erro ao baixar {filename}: {exc}"))
 
     def _play_cached(self, local_path: str, filename: str, loop: bool, volume: float):
-        # Verifica se já está tocando
-        existing = self._active_tracks.get(filename)
-        if existing is not None and existing.is_active():
-            return
+        with self._tracks_lock:
+            existing = self._active_tracks.get(filename)
+            if existing is not None and existing.is_active():
+                return
         try:
             track: AudioTrack = self._audio.add_track(local_path)
-            self._active_tracks[filename] = track
+            with self._tracks_lock:
+                self._active_tracks[filename] = track
             track.set_volume(volume * self._vol_var.get())
             track.play(loop=loop)
         except Exception as exc:
             self._set_status(f"Erro ao tocar {filename}: {exc}")
 
     def _stop_track(self, filename: str):
-        track = self._active_tracks.pop(filename, None)
+        with self._tracks_lock:
+            track = self._active_tracks.pop(filename, None)
         if track is not None:
             try:
                 track.stop()
@@ -295,7 +330,12 @@ class PlayerWindow(tk.Toplevel):
     def _fetch_and_play_sfx(self, filename: str, volume: float):
         if not filename:
             return
-        local_path = os.path.join(self._cache_dir(), filename)
+        # FIX: rejeita path traversal
+        safe_name = os.path.basename(filename)
+        if not safe_name or safe_name.startswith("."):
+            return
+        local_path = os.path.join(self._cache_dir(), safe_name)
+        filename = safe_name
         if os.path.isfile(local_path):
             self._play_sfx_cached(local_path, filename, volume)
             return
@@ -317,7 +357,8 @@ class PlayerWindow(tk.Toplevel):
     def _play_sfx_cached(self, local_path: str, filename: str, volume: float):
         try:
             track: AudioTrack = self._audio.add_track(local_path)
-            self._active_sfx[filename] = track
+            with self._tracks_lock:
+                self._active_sfx[filename] = track
             track.set_volume(volume * self._vol_var.get())
             track.play()
         except Exception:

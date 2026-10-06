@@ -8,6 +8,7 @@ from tkinter import scrolledtext
 
 from src.i18n.translator import t
 from src.network_manager import NetworkManager
+from src.ui.theme import COLORS
 
 
 class NetworkPanel(ttk.Frame):
@@ -45,17 +46,17 @@ class NetworkPanel(ttk.Frame):
         self._session_info_frame.grid(row=0, column=1, sticky="nsew", padx=(0, 6))
         self._session_info_frame.grid_remove()  # hidden initially
 
-        ttk.Label(self._session_info_frame, text="Código:", foreground="gray").pack(anchor="w")
+        ttk.Label(self._session_info_frame, text="Código:", foreground=COLORS["text_muted"]).pack(anchor="w")
         self._session_code_label = ttk.Label(
             self._session_info_frame, text="—",
-            font=("Consolas", 14, "bold"), foreground="#3498db"
+            font=("Consolas", 14, "bold"), foreground=COLORS["accent"]
         )
         self._session_code_label.pack(anchor="w", pady=(0, 4))
 
-        ttk.Label(self._session_info_frame, text="PIN:", foreground="gray").pack(anchor="w")
+        ttk.Label(self._session_info_frame, text="PIN:", foreground=COLORS["text_muted"]).pack(anchor="w")
         self._pin_label = ttk.Label(
             self._session_info_frame, text="—",
-            font=("Consolas", 18, "bold"), foreground="#2ecc71"
+            font=("Consolas", 18, "bold"), foreground=COLORS["success"]
         )
         self._pin_label.pack(anchor="w", pady=(0, 4))
 
@@ -65,7 +66,7 @@ class NetworkPanel(ttk.Frame):
         ).pack(fill="x", pady=(2, 4))
 
         self._player_count_label = ttk.Label(
-            self._session_info_frame, text="Jogadores: 0", foreground="gray"
+            self._session_info_frame, text="Jogadores: 0", foreground=COLORS["text_muted"]
         )
         self._player_count_label.pack(anchor="w")
 
@@ -86,13 +87,18 @@ class NetworkPanel(ttk.Frame):
         top.columnconfigure(2, weight=1)
 
         # ── Status geral ────────────────────────────────────────────────────
-        self.host_status = ttk.Label(self, text=t("network.status.offline"), foreground="gray")
+        self.host_status = ttk.Label(self, text=t("network.status.offline"), foreground=COLORS["text_muted"])
         self.host_status.pack(anchor="w", pady=(8, 0))
 
         # ── Log ─────────────────────────────────────────────────────────────
         log_frame = ttk.LabelFrame(self, text=t("network.log.title"), padding=10)
         log_frame.pack(fill="both", expand=True, pady=(10, 0))
-        self.log_box = scrolledtext.ScrolledText(log_frame, height=8, state="disabled", wrap="word")
+        self.log_box = scrolledtext.ScrolledText(
+            log_frame, height=8, state="disabled", wrap="word",
+            bg=COLORS["surface"], fg=COLORS["text"],
+            insertbackground=COLORS["text"],
+            selectbackground=COLORS["primary"],
+        )
         self.log_box.pack(fill="both", expand=True)
 
     def _show_tutorial(self):
@@ -112,6 +118,9 @@ class NetworkPanel(ttk.Frame):
             frame, wrap="word", height=22,
             font=("Segoe UI", 10), relief="flat",
             padx=10, pady=8,
+            bg=COLORS["surface"], fg=COLORS["text"],
+            insertbackground=COLORS["text"],
+            selectbackground=COLORS["primary"],
         )
         text.pack(fill="both", expand=True)
 
@@ -141,7 +150,7 @@ class NetworkPanel(ttk.Frame):
              "como se todos estivessem no mesmo Wi-Fi.\n", "normal"),
         ]
 
-        text.tag_configure("heading", font=("Segoe UI", 11, "bold"), foreground="#a78bfa", spacing1=8, spacing3=2)
+        text.tag_configure("heading", font=("Segoe UI", 11, "bold"), foreground=COLORS["primary_light"], spacing1=8, spacing3=2)
         text.tag_configure("normal", font=("Segoe UI", 10))
 
         for content, tag in sections:

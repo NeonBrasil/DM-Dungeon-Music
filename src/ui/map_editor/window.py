@@ -47,6 +47,29 @@ def _empty_map(name: str) -> dict:
     }
 
 
+def _migrate_flat_to_levels(data: dict) -> dict:
+    """Converte o schema plano legado (antigo editor clássico/MapSessionManager,
+    sem a chave "levels") para o formato de níveis usado pelo editor atual,
+    preservando os itens já desenhados."""
+    if "levels" in data:
+        return data
+    return {
+        "name":      data.get("name", ""),
+        "version":   1,
+        "levels": [{
+            "name":           "Mundo",
+            "items":          data.get("items", []),
+            "fog":            data.get("fog", []),
+            "bg_style":       data.get("bg_style", "dark"),
+            "bg_color":       data.get("bg_color", BG_STYLES["dark"]),
+            "grid_type":      data.get("grid_type", "none"),
+            "grid_size":      data.get("grid_size", 50),
+            "layers_visible": data.get("layers_visible", {l: True for l in LAYER_ORDER}),
+        }],
+        "level_idx": 0,
+    }
+
+
 # ─── Level Breadcrumb ─────────────────────────────────────────────────────────
 
 class LevelBar(QWidget):
@@ -304,7 +327,8 @@ class MapEditorWindow(QMainWindow):
         if os.path.isfile(self._map_path):
             try:
                 with open(self._map_path, "r", encoding="utf-8") as f:
-                    self._map_data = json.load(f)
+                    data = json.load(f)
+                self._map_data = _migrate_flat_to_levels(data)
                 return
             except Exception as e:
                 self._status.showMessage(f"Erro ao carregar: {e}", 5000)

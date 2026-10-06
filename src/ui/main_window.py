@@ -19,13 +19,15 @@ from src.network_manager import NetworkManager
 from src.ui.audio_panel import AudioPanel, SfxPanel
 from src.ui.image_panel import ImagePanel
 from src.ui.canvas_window import PresentationCanvas
-from src.ui.battlemap import BattleMapPanel
-from src.ui.theme import apply_theme, COLORS, SUPPORTED_THEMES, current_theme
-from src.ui.systems_panel import SystemsPanel
-from src.ui.map_launcher import MapLauncherPanel as MapCreatorPanel
-from src.ui.system_creator_panel import SystemCreatorPanel
+from src.ui.theme import apply_theme, COLORS, THEMES, SUPPORTED_THEMES, current_theme
 from src.ui.network_panel import NetworkPanel
+from src.ui.icons import icon
 from src.i18n.translator import t, current_locale, SUPPORTED_LOCALES
+
+SHOW_BATTLEMAP = False
+SHOW_VTT = False
+SHOW_LIBRARY = False
+SHOW_SHELVED_TOOLS = False
 
 
 class MainWindow:
@@ -48,7 +50,11 @@ class MainWindow:
         self.sfx_manager = AudioManager(channel_offset=16)   # Canais 16-31 para SFX
         self.session_manager = SessionManager()
         self.network_manager = NetworkManager()
-
+        self.card_manager = None
+        if SHOW_VTT:
+            from src.card_manager import CardManager
+            self.card_manager = CardManager()
+            self.card_manager.load("master_cards.json")
 
         # Estado para diff de áudio (broadcast multiplayer)
         self._last_playing_music: set[int] = set()
@@ -160,11 +166,14 @@ class MainWindow:
         for code, display_name in SUPPORTED_THEMES.items():
             theme_menu.add_radiobutton(
                 label=display_name,
+                image=icon("swatch", 14, THEMES[code]["primary"]),
+                compound="left",
                 variable=self._theme_var,
                 value=code,
                 command=lambda c=code: self._on_theme_change(c),
             )
-        menubar.add_cascade(label="🎨 Tema", menu=theme_menu)
+        menubar.add_cascade(label="Tema", image=icon("palette", 16, COLORS["text"]),
+                            compound="left", menu=theme_menu)
 
         # Menu Ajuda
         help_menu = tk.Menu(menubar, tearoff=0, **_mc)
@@ -179,11 +188,13 @@ class MainWindow:
         header = ttk.Frame(self.root, padding=(15, 10))
         header.pack(fill="x")
 
-        ttk.Label(header, text="⚔️ DM - Dungeon Music",
+        ttk.Label(header, text="DM - Dungeon Music",
+                  image=icon("sword", 20, COLORS["primary_light"]), compound="left",
                   style="Title.TLabel").pack(side="left")
 
         ttk.Button(
-            header, text="📖 O que é RPG?",
+            header, text="O que é RPG?",
+            image=icon("book", 16, COLORS["text"]), compound="left",
             command=self._show_about_rpg,
         ).pack(side="right", padx=(0, 4))
 
@@ -226,54 +237,77 @@ class MainWindow:
         self.presentation_canvas.pack(fill="both", expand=True)
         self.presentation_canvas.set_network_manager(self.network_manager)
 
-        # Tab BattleMap
-        bmap_tab = ttk.Frame(self.notebook, padding=0)
-        self.notebook.add(bmap_tab, text="⚔ BattleMap")
-        self.battlemap = BattleMapPanel(bmap_tab)
-        self.battlemap.pack(fill="both", expand=True)
-        self.battlemap.set_network_manager(self.network_manager)
+        self.battlemap = None
+        if SHOW_BATTLEMAP:
+            from src.ui.battlemap import BattleMapPanel
+
+            # Tab BattleMap
+            bmap_tab = ttk.Frame(self.notebook, padding=0)
+            self.notebook.add(bmap_tab, text="⚔ BattleMap")
+            self.battlemap = BattleMapPanel(bmap_tab)
+            self.battlemap.pack(fill="both", expand=True)
+            self.battlemap.set_network_manager(self.network_manager)
+
+        self.vtt_canvas = None
+        if SHOW_VTT and self.card_manager is not None:
+            from src.ui.vtt_canvas import VTTCanvas
+
+            # Tab VTT
+            vtt_tab = ttk.Frame(self.notebook, padding=0)
+            self.notebook.add(vtt_tab, text="🃏 VTT")
+            self.vtt_canvas = VTTCanvas(vtt_tab, self.card_manager)
+            self.vtt_canvas.pack(fill="both", expand=True)
+            self.vtt_canvas.set_network_manager(self.network_manager)
 
         # Tab Online / Multiplayer
         online_tab = ttk.Frame(self.notebook, padding=5)
         self.notebook.add(online_tab, text=t("main.tabs.online"))
         NetworkPanel(online_tab, self.network_manager).pack(fill="both", expand=True)
 
+        from src.ui.map_launcher import MapLauncherPanel
+
         # Tab Criador de Mapas
         map_tab = ttk.Frame(self.notebook, padding=0)
         self.notebook.add(map_tab, text=t("main.tabs.map"))
-        MapCreatorPanel(map_tab).pack(fill="both", expand=True)
+        MapLauncherPanel(map_tab).pack(fill="both", expand=True)
 
-        # Tab de Sistemas
-        systems_tab = ttk.Frame(self.notebook, padding=5)
-        self.notebook.add(systems_tab, text=t("main.tabs.systems"))
-        SystemsPanel(systems_tab).pack(fill="both", expand=True)
+        if SHOW_SHELVED_TOOLS:
+            # Ferramentas engavetadas: mantidas no código, escondidas da UI principal.
+            from src.ui.systems_panel import SystemsPanel
+            from src.ui.system_creator_panel import SystemCreatorPanel
 
-        # Tab Crie seu Sistema
-        create_tab = ttk.Frame(self.notebook, padding=0)
-        self.notebook.add(create_tab, text=t("main.tabs.creator"))
-        SystemCreatorPanel(create_tab).pack(fill="both", expand=True)
+            # Tab de Sistemas
+            systems_tab = ttk.Frame(self.notebook, padding=5)
+            self.notebook.add(systems_tab, text=t("main.tabs.systems"))
+            SystemsPanel(systems_tab).pack(fill="both", expand=True)
 
-        # Tab Bibliotecas Opcionais — Em breve
-        library_tab = ttk.Frame(self.notebook, padding=40)
-        self.notebook.add(library_tab, text=t("main.tabs.library"))
-        ttk.Label(
-            library_tab,
-            text="📦 Bibliotecas de Conteúdo",
-            style="Title.TLabel",
-        ).pack(pady=(60, 12))
-        ttk.Label(
-            library_tab,
-            text="🚧  Em breve",
-            font=("Segoe UI", 22, "bold"),
-            foreground=COLORS["text_muted"],
-        ).pack()
-        ttk.Label(
-            library_tab,
-            text="Downloads de ícones, tokens, mapas e outros pacotes de conteúdo\nestão sendo preparados e estarão disponíveis em uma versão futura.",
-            font=("Segoe UI", 11),
-            foreground=COLORS["text_dim"],
-            justify="center",
-        ).pack(pady=(12, 0))
+            # Tab Crie seu Sistema
+            create_tab = ttk.Frame(self.notebook, padding=0)
+            self.notebook.add(create_tab, text=t("main.tabs.creator"))
+            SystemCreatorPanel(create_tab).pack(fill="both", expand=True)
+
+        if SHOW_LIBRARY:
+            # Tab Bibliotecas Opcionais — Em breve
+            library_tab = ttk.Frame(self.notebook, padding=40)
+            self.notebook.add(library_tab, text=t("main.tabs.library"))
+            ttk.Label(
+                library_tab,
+                text="📦 Bibliotecas de Conteúdo",
+                style="Title.TLabel",
+            ).pack(pady=(60, 12))
+            ttk.Label(
+                library_tab,
+                text="🚧  Em breve",
+                font=("Segoe UI", 22, "bold"),
+                foreground=COLORS["text_muted"],
+            ).pack()
+            ttk.Label(
+                library_tab,
+                text="Downloads de ícones, tokens, mapas e outros pacotes de conteúdo\nestão sendo preparados e estarão disponíveis em uma versão futura.",
+                font=("Segoe UI", 11),
+                foreground=COLORS["text_dim"],
+                justify="center",
+            ).pack(pady=(12, 0))
 
         # Barra de status
         status_bar = ttk.Frame(self.root, padding=(10, 5))
@@ -363,12 +397,20 @@ class MainWindow:
                 if os.path.isfile(getattr(tr, "file_path", ""))
             })
             self.network_manager.start_http_server(dirs, port=8766)
+            if self.vtt_canvas is not None:
+                self.root.after(0, lambda: self.vtt_canvas.set_role(True, "host"))
 
     def _on_network_message(self, payload: dict):
         """Processa mensagens recebidas pela rede."""
         event = payload.get("type")
-        if event == "welcome":
-            # Jogador se conectou com sucesso — abre visão de jogador
+        if event == "assigned_id":
+            # Servidor atribuiu ID ao jogador — atualizar role no VTT
+            pid = payload.get("player_id", "")
+            if self.vtt_canvas is not None:
+                self.root.after(0, lambda: self.vtt_canvas.set_role(False, pid))
+            self.root.after(0, self._open_player_window)
+        elif event == "welcome":
+            # Fallback para versões antigas do servidor
             self.root.after(0, self._open_player_window)
         elif event == "dice_roll" and self.network_manager.is_hosting:
             # Host re-transmite resultado para todos e exibe localmente
@@ -382,9 +424,12 @@ class MainWindow:
         """Envia estado atual ao jogador que acabou de entrar."""
         canvas_state = self.presentation_canvas._serialize_canvas()
         self.network_manager.broadcast("canvas_full_sync", {"images": canvas_state})
-        # Envia estado do battlemap
-        bmap_state = self.battlemap.serialize_state()
-        self.network_manager.broadcast("battlemap_full_sync", bmap_state)
+        if self.battlemap is not None:
+            bmap_state = self.battlemap.serialize_state()
+            self.network_manager.broadcast("battlemap_full_sync", bmap_state)
+        if self.vtt_canvas is not None:
+            vtt_state = self.vtt_canvas.get_full_sync_payload()
+            self.network_manager.broadcast("vtt_full_sync", vtt_state)
         # Broadcast de faixas atualmente tocando
         for tr in self.audio_manager.tracks.values():
             if tr.is_active():
@@ -412,7 +457,12 @@ class MainWindow:
         rolled = payload.get("rolled", 0)
         total = payload.get("total", 0)
         player = payload.get("player", "")
-        self.battlemap.show_dice_overlay(die, mod, rolled, total, player)
+        if self.battlemap is not None:
+            self.battlemap.show_dice_overlay(die, mod, rolled, total, player)
+        elif self.vtt_canvas is not None:
+            self.vtt_canvas.show_dice_overlay(die, mod, rolled, total, player)
+        else:
+            self.presentation_canvas.show_dice_overlay(die, mod, rolled, total, player)
 
     def _show_about_rpg(self):
         """Exibe popup explicativo sobre RPG e a história do projeto."""
@@ -431,6 +481,9 @@ class MainWindow:
             frame, wrap="word", height=26,
             font=("Segoe UI", 10), relief="flat",
             padx=10, pady=8,
+            bg=COLORS["surface"], fg=COLORS["text"],
+            insertbackground=COLORS["text"],
+            selectbackground=COLORS["primary"],
         )
         text.pack(fill="both", expand=True)
 
@@ -512,6 +565,8 @@ class MainWindow:
         # Salva sessões de áudio atuais
         self.audio_panel.save_current_session()
         self.sfx_panel.save_current_session()
+        if self.card_manager is not None:
+            self.card_manager.save("master_cards.json")
         # Salva cache de metadados
         from src.audio_manager import _save_cache
         _save_cache()

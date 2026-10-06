@@ -37,7 +37,7 @@ class ImagePreview(ttk.Frame):
             thumb_label = ttk.Label(self, image=self.photo)
         except Exception:
             thumb_label = ttk.Label(self, text=t("image.preview.no_preview"), width=15,
-                                   anchor="center", foreground="gray")
+                                   anchor="center", foreground=COLORS["text_muted"])
         thumb_label.grid(row=0, column=0, rowspan=3, padx=(0, 10))
 
         # Nome
@@ -47,7 +47,7 @@ class ImagePreview(ttk.Frame):
         # Stats (se houver)
         if self.image_item.stats:
             stats_text = " | ".join(f"{k}: {v}" for k, v in self.image_item.stats.items())
-            stats_label = ttk.Label(self, text=stats_text, foreground="gray")
+            stats_label = ttk.Label(self, text=stats_text, foreground=COLORS["text_muted"])
             stats_label.grid(row=1, column=1, sticky="w")
 
         # Controles
@@ -98,7 +98,7 @@ class StatsDialog(tk.Toplevel):
         ttk.Label(main, text=t("image.stats.title"),
                   font=("", 12, "bold")).pack(pady=(0, 10))
         ttk.Label(main, text=t("image.stats.format_hint"),
-                  foreground="gray").pack()
+                  foreground=COLORS["text_muted"]).pack()
 
         self.text = tk.Text(main, height=10, width=40, font=("Consolas", 10),
                             bg=COLORS["surface"], fg=COLORS["text"],
@@ -189,7 +189,7 @@ class ImagePanel(ttk.LabelFrame):
         self.placeholder = ttk.Label(
             self.images_frame,
             text=t("image.placeholder.no_session"),
-            foreground="gray", justify="center", padding=30
+            foreground=COLORS["text_muted"], justify="center", padding=30
         )
         self.placeholder.pack()
 

@@ -4,7 +4,9 @@ Tema visual — suporta múltiplos temas.
 """
 
 import tkinter as tk
-from tkinter import ttk
+
+import ttkbootstrap as tb
+from ttkbootstrap.style import Colors, ThemeDefinition
 
 
 # ═══════════════════════════════════════
@@ -26,6 +28,7 @@ THEMES: dict[str, dict] = {
         "success":       "#22c55e",
         "warning":       "#f59e0b",
         "danger":        "#ef4444",
+        "crit":          "#ffd700",
         "text":          "#e2e8f0",
         "text_muted":    "#94a3b8",
         "text_dim":      "#64748b",
@@ -44,6 +47,7 @@ THEMES: dict[str, dict] = {
         "success":       "#22c55e",
         "warning":       "#f59e0b",
         "danger":        "#ef4444",
+        "crit":          "#ffd700",
         "text":          "#e5e5e5",
         "text_muted":    "#737373",
         "text_dim":      "#404040",
@@ -62,6 +66,7 @@ THEMES: dict[str, dict] = {
         "success":       "#22c55e",
         "warning":       "#f59e0b",
         "danger":        "#ef4444",
+        "crit":          "#ffd700",
         "text":          "#cbd5e1",
         "text_muted":    "#64748b",
         "text_dim":      "#475569",
@@ -80,6 +85,7 @@ THEMES: dict[str, dict] = {
         "success":       "#22c55e",
         "warning":       "#f59e0b",
         "danger":        "#ef4444",
+        "crit":          "#ffd700",
         "text":          "#d1fae5",
         "text_muted":    "#6ee7b7",
         "text_dim":      "#34d399",
@@ -98,6 +104,7 @@ THEMES: dict[str, dict] = {
         "success":       "#22c55e",
         "warning":       "#f59e0b",
         "danger":        "#ef4444",
+        "crit":          "#ffd700",
         "text":          "#fef3c7",
         "text_muted":    "#d97706",
         "text_dim":      "#92400e",
@@ -116,6 +123,7 @@ THEMES: dict[str, dict] = {
         "success":       "#16a34a",
         "warning":       "#d97706",
         "danger":        "#dc2626",
+        "crit":          "#b45309",
         "text":          "#0f172a",
         "text_muted":    "#475569",
         "text_dim":      "#94a3b8",
@@ -148,14 +156,52 @@ def current_theme() -> str:
     return _current_theme
 
 
+def _palette_to_colors(palette: dict) -> Colors:
+    """Mapeia as 15 chaves semânticas da paleta para os papéis de cor do ttkbootstrap."""
+    return Colors(
+        primary=palette["primary"],
+        secondary=palette["surface"],
+        success=palette["success"],
+        info=palette["accent"],
+        warning=palette["warning"],
+        danger=palette["danger"],
+        light=palette["surface_hover"],
+        dark=palette["bg_alt"],
+        bg=palette["bg"],
+        fg=palette["text"],
+        selectbg=palette["primary"],
+        selectfg=palette["text"],
+        border=palette["border"],
+        inputfg=palette["text"],
+        inputbg=palette["surface"],
+        active=palette["surface_hover"],
+    )
+
+
+_themes_registered = False
+
+
 def apply_theme(root: tk.Tk) -> None:
     """Aplica o tema visual atual a toda a aplicação."""
+    global _themes_registered
     COLORS.update(THEMES.get(_current_theme, THEMES["transylvania"]))
 
     root.configure(bg=COLORS["bg"])
 
-    style = ttk.Style()
-    style.theme_use("clam")
+    # Motor ttkbootstrap: registra as 6 paletas como temas (uma vez) e ativa
+    # o tema corrente. Os blocos abaixo continuam configurando manualmente os
+    # estilos ttk usados pela aplicação (ela usa `ttk.*` puro, não os widgets
+    # do ttkbootstrap, então os estilos coloridos não são gerados sozinhos —
+    # exceto TButton, que o ttkbootstrap sempre constrói de forma eager).
+    style = tb.Style()
+    if not _themes_registered:
+        for name, palette in THEMES.items():
+            themetype = "light" if name == "light" else "dark"
+            style.register_theme(ThemeDefinition(
+                name=name, colors=_palette_to_colors(palette), themetype=themetype,
+            ))
+        _themes_registered = True
+    style.theme_use(_current_theme)
 
     # ── Base global ──
     style.configure(".",

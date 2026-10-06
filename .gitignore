@@ -41,6 +41,7 @@ DM-DungeonMusic.spec
 # Dados locais / cache
 # ═══════════════════════════════════════
 regras.gdd
+CLAUDE.md
 
 # Logs de pip (arquivos sem extensão gerados por acidente)
 10.0.0

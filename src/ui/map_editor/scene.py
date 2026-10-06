@@ -78,6 +78,27 @@ class EditItemCmd(QUndoCommand):
         self._scene._do_update(self._old_data)
 
 
+class MoveItemCmd(QUndoCommand):
+    """Registra o arrasto de um item já efetuado pelo drag nativo do Qt.
+
+    `itemChange` (em items.py) já mantém `data` sincronizado a cada `setPos`;
+    este comando só empilha a posição antiga/nova para o undo/redo funcionar,
+    sem duplicar deslocamento (posições são absolutas, não deltas).
+    """
+
+    def __init__(self, item, old_pos: QPointF, new_pos: QPointF):
+        super().__init__("Mover item")
+        self._item     = item
+        self._old_pos  = QPointF(old_pos)
+        self._new_pos  = QPointF(new_pos)
+
+    def redo(self):
+        self._item.setPos(self._new_pos)
+
+    def undo(self):
+        self._item.setPos(self._old_pos)
+
+
 # ─── Tools ────────────────────────────────────────────────────────────────────
 
 class BaseTool:
@@ -449,6 +470,7 @@ class MapScene(QGraphicsScene):
 
         # Undo stack
         self.undo_stack = QUndoStack(self)
+        self._drag_positions: dict = {}   # item -> QPointF antes do drag nativo do Qt
 
         # Parchment texture
         self._bg_pixmap: QPixmap | None = None
@@ -841,6 +863,9 @@ class MapScene(QGraphicsScene):
         if self._tool.mouse_press(event):
             return
         super().mousePressEvent(event)
+        # Snapshot das posições pós-clique (já refletindo a seleção atual)
+        # para poder detectar um arrasto e empilhar undo no release.
+        self._drag_positions = {item: item.pos() for item in self.selectedItems()}
 
     def mouseMoveEvent(self, event):
         if self._tool.mouse_move(event):
@@ -851,6 +876,19 @@ class MapScene(QGraphicsScene):
         if self._tool.mouse_release(event):
             return
         super().mouseReleaseEvent(event)
+        moved = [
+            (item, old_pos, item.pos())
+            for item, old_pos in self._drag_positions.items()
+            if item.pos() != old_pos
+        ]
+        self._drag_positions = {}
+        if moved:
+            if len(moved) > 1:
+                self.undo_stack.beginMacro("Mover itens")
+            for item, old_pos, new_pos in moved:
+                self.undo_stack.push(MoveItemCmd(item, old_pos, new_pos))
+            if len(moved) > 1:
+                self.undo_stack.endMacro()
 
     def mouseDoubleClickEvent(self, event):
         if self._tool.double_click(event):

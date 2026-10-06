@@ -18,9 +18,15 @@ from tkinter import ttk, filedialog
 from PIL import Image, ImageTk
 
 from src.ui.canvas_window import _draw_dice_overlay
+from src.ui.theme import COLORS
 
 _DICE = ["D3", "D4", "D6", "D8", "D10", "D20", "D100"]
 _BG_Z_BASE = -10000  # backgrounds usam z-orders muito negativos
+
+
+def _hex_to_rgb(color: str) -> tuple[int, int, int]:
+    color = color.lstrip("#")
+    return int(color[0:2], 16), int(color[2:4], 16), int(color[4:6], 16)
 
 
 # ──────────────────────────────────────────────────────────────────────────────
@@ -79,8 +85,6 @@ class BattleMapPanel(ttk.Frame):
     - Barra de dados com animação (rodapé)
     """
 
-    BG_COLOR = "#0d0d1a"
-    SEL_COLOR = "#7c3aed"
     TEXT_COLOR = "#e0e0e0"
 
     def __init__(self, parent):
@@ -153,13 +157,13 @@ class BattleMapPanel(ttk.Frame):
         center.columnconfigure(0, weight=1)
         center.rowconfigure(0, weight=1)
 
-        self.canvas = tk.Canvas(center, bg=self.BG_COLOR, highlightthickness=0)
+        self.canvas = tk.Canvas(center, bg=COLORS["bg_alt"], highlightthickness=0)
         self.canvas.grid(row=0, column=0, sticky="nsew")
 
         self._default_text = self.canvas.create_text(
             640, 360,
             text="⚔️  BattleMap\n\nAdicione um fundo para começar",
-            fill="#3a3a5a", font=("Segoe UI", 20, "bold"), justify="center"
+            fill=COLORS["text_dim"], font=("Segoe UI", 20, "bold"), justify="center"
         )
 
         # Painel de histórico
@@ -169,7 +173,7 @@ class BattleMapPanel(ttk.Frame):
 
         self._history_text = tk.Text(
             hist_frame, width=24, state="disabled", wrap="word",
-            bg="#0f0f1e", fg="#c0c0d0", font=("Consolas", 10),
+            bg=COLORS["bg_alt"], fg=COLORS["text_muted"], font=("Consolas", 10),
             relief="flat", highlightthickness=0
         )
         hist_scroll = ttk.Scrollbar(hist_frame, command=self._history_text.yview)
@@ -214,13 +218,13 @@ class BattleMapPanel(ttk.Frame):
         # Display animado do resultado (número grande)
         self._anim_label = ttk.Label(
             dice_frame, text="—",
-            font=("Segoe UI", 36, "bold"), foreground="#ffd700", width=5,
+            font=("Segoe UI", 36, "bold"), foreground=COLORS["crit"], width=5,
             anchor="center"
         )
         self._anim_label.pack(side="left", padx=(4, 2))
 
         self._detail_label = ttk.Label(
-            dice_frame, text="", foreground="#a78bfa",
+            dice_frame, text="", foreground=COLORS["primary_light"],
             font=("Segoe UI", 11)
         )
         self._detail_label.pack(side="left", padx=4)
@@ -409,7 +413,7 @@ class BattleMapPanel(ttk.Frame):
             self._default_text = self.canvas.create_text(
                 w // 2, h // 2,
                 text="⚔️  BattleMap\n\nAdicione um fundo para começar",
-                fill="#3a3a5a", font=("Segoe UI", 20, "bold"), justify="center",
+                fill=COLORS["text_dim"], font=("Segoe UI", 20, "bold"), justify="center",
                 tags="bmi"
             )
             return
@@ -427,7 +431,7 @@ class BattleMapPanel(ttk.Frame):
                                      tags=("bmi", tag))
             if img.selected:
                 hw, hh = img._cached_w / 2, img._cached_h / 2
-                color = "#ffd700" if img.is_background else self.SEL_COLOR
+                color = COLORS["crit"] if img.is_background else COLORS["primary"]
                 self.canvas.create_rectangle(
                     sx - hw - 3, sy - hh - 3,
                     sx + hw + 3, sy + hh + 3,
@@ -540,7 +544,7 @@ class BattleMapPanel(ttk.Frame):
         self._rolling = True
         self._roll_btn.config(state="disabled")
         self._detail_label.config(text="")
-        self._anim_label.config(text="?", foreground="#a78bfa")
+        self._anim_label.config(text="?", foreground=COLORS["primary_light"])
         # Inicia animação: 22 quadros com atraso crescente
         self._animate_roll(sides, mod, rolled, total, step=0, total_steps=22)
 
@@ -548,11 +552,13 @@ class BattleMapPanel(ttk.Frame):
                       step: int, total_steps: int):
         if step < total_steps:
             display = random.randint(1, sides)
-            # Muda cor progressivamente de roxo → dourado
+            # Muda cor progressivamente da cor primária para o dourado de crítico
             ratio = step / total_steps
-            r_comp = int(0xa7 + (0xff - 0xa7) * ratio)
-            g_comp = int(0x8b + (0xd7 - 0x8b) * ratio)
-            b_comp = int(0xfa - 0xfa * ratio)
+            r0, g0, b0 = _hex_to_rgb(COLORS["primary_light"])
+            r1, g1, b1 = _hex_to_rgb(COLORS["crit"])
+            r_comp = int(r0 + (r1 - r0) * ratio)
+            g_comp = int(g0 + (g1 - g0) * ratio)
+            b_comp = int(b0 + (b1 - b0) * ratio)
             color = f"#{r_comp:02x}{g_comp:02x}{b_comp:02x}"
             self._anim_label.config(text=str(display), foreground=color)
             # Atraso exponencial: começa rápido (30ms) e desacelera (até ~300ms)
@@ -564,12 +570,12 @@ class BattleMapPanel(ttk.Frame):
             # Resultado final
             self._rolling = False
             self._roll_btn.config(state="normal")
-            self._anim_label.config(text=str(total), foreground="#ffd700")
+            self._anim_label.config(text=str(total), foreground=COLORS["crit"])
             die = self._selected_die.get()
             mod_str = f"+{mod}" if mod > 0 else (str(mod) if mod < 0 else "")
             self._detail_label.config(
                 text=f"{die}{mod_str}  |  rolou {rolled}",
-                foreground="#a78bfa"
+                foreground=COLORS["primary_light"]
             )
             # Overlay no canvas
             self._show_overlay(die, mod, rolled, total)
@@ -609,9 +615,9 @@ class BattleMapPanel(ttk.Frame):
         self._history_text.config(state="normal")
         # Coloração do resultado
         tag = "crit" if rolled == int(die[1:]) else ("fail" if rolled == 1 else "normal")
-        self._history_text.tag_config("crit", foreground="#ffd700")
-        self._history_text.tag_config("fail", foreground="#ef4444")
-        self._history_text.tag_config("normal", foreground="#c0c0d0")
+        self._history_text.tag_config("crit", foreground=COLORS["crit"])
+        self._history_text.tag_config("fail", foreground=COLORS["danger"])
+        self._history_text.tag_config("normal", foreground=COLORS["text_muted"])
         self._history_text.insert("end", line, tag)
         self._history_text.see("end")
         self._history_text.config(state="disabled")
@@ -627,18 +633,22 @@ class BattleMapPanel(ttk.Frame):
         self._network_manager = nm
 
     def serialize_state(self) -> dict:
+        images = []
+        for img in sorted(self._images, key=lambda i: i.z_order):
+            item = {
+                "file_path": img.file_path,
+                "x": img.x, "y": img.y,
+                "scale": img.scale,
+                "z_order": img.z_order,
+                "is_background": img.is_background,
+                "locked": img.locked,
+            }
+            nm = self._network_manager
+            if nm is not None and nm.is_hosting:
+                item["shared_id"] = nm.register_shared_file(img.file_path)
+            images.append(item)
         return {
-            "images": [
-                {
-                    "file_path": img.file_path,
-                    "x": img.x, "y": img.y,
-                    "scale": img.scale,
-                    "z_order": img.z_order,
-                    "is_background": img.is_background,
-                    "locked": img.locked,
-                }
-                for img in sorted(self._images, key=lambda i: i.z_order)
-            ]
+            "images": images
         }
 
     def apply_state(self, state: dict):

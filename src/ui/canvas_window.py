@@ -15,6 +15,7 @@ import random
 import math
 from src.session_manager import Session, ImageItem
 from src.i18n.translator import t
+from src.ui.theme import COLORS
 
 
 class CanvasImage:
@@ -96,21 +97,21 @@ def _draw_dice_overlay(canvas_widget: tk.Canvas, die: str, mod: int,
     canvas_widget.create_rectangle(
         w // 2 - 160, h // 2 - 75,
         w // 2 + 160, h // 2 + 75,
-        fill="#1a1a2e", outline="#7c3aed", width=3, tags=tag
+        fill=COLORS["bg_alt"], outline=COLORS["primary"], width=3, tags=tag
     )
     canvas_widget.create_text(
         w // 2, h // 2 - 42, text=line1,
-        fill="#a78bfa", font=("Segoe UI", 22, "bold"),
+        fill=COLORS["primary_light"], font=("Segoe UI", 22, "bold"),
         justify="center", tags=tag
     )
     canvas_widget.create_text(
         w // 2, h // 2 + 2, text=line2,
-        fill="#ffd700", font=("Segoe UI", 36, "bold"),
+        fill=COLORS["crit"], font=("Segoe UI", 36, "bold"),
         justify="center", tags=tag
     )
     canvas_widget.create_text(
         w // 2, h // 2 + 48, text=line3,
-        fill="#e2e8f0", font=("Segoe UI", 13),
+        fill=COLORS["text"], font=("Segoe UI", 13),
         justify="center", tags=tag
     )
 
@@ -150,7 +151,7 @@ class DiceRollerFrame(ttk.Frame):
         ttk.Separator(self, orient="vertical").pack(side="left", fill="y", padx=6)
         ttk.Button(self, text="Rolar", command=self._do_roll).pack(side="left", padx=2)
 
-        self._result_label = ttk.Label(self, text="", foreground="#a78bfa")
+        self._result_label = ttk.Label(self, text="", foreground=COLORS["primary_light"])
         self._result_label.pack(side="left", padx=8)
 
         self._select_die("D20")
@@ -201,16 +202,14 @@ class PresentationCanvas(ttk.Frame):
     - Seleção visual de imagens
     """
 
-    BG_COLOR = "#1a1a2e"
-    TEXT_COLOR = "#e0e0e0"
-    SELECTION_COLOR = "#3498db"
-
     def __init__(self, parent):
         super().__init__(parent)
 
         # Estado do canvas
         self._canvas_images: list[CanvasImage] = []
         self._selected_image: CanvasImage | None = None
+        self._pil_cache: dict[str, Image.Image] = {}  # evita reabrir do disco a cada toggle
+        self._canvas_image_cache: dict[str, CanvasImage] = {}  # evita recriar/redimensionar imagens inalteradas
         self._canvas_zoom = 1.0
         self._pan_x = 0.0
         self._pan_y = 0.0
@@ -297,7 +296,7 @@ class PresentationCanvas(ttk.Frame):
 
         # ── Canvas principal ──
         self.canvas = tk.Canvas(
-            self, bg=self.BG_COLOR, highlightthickness=0, cursor="arrow"
+            self, bg=COLORS["bg_alt"], highlightthickness=0, cursor="arrow"
         )
         self.canvas.pack(fill="both", expand=True)
 
@@ -305,7 +304,7 @@ class PresentationCanvas(ttk.Frame):
         self.default_text = self.canvas.create_text(
             640, 360,
             text=t("canvas.default_text"),
-            fill=self.TEXT_COLOR, font=("Segoe UI", 24, "bold"),
+            fill=COLORS["text"], font=("Segoe UI", 24, "bold"),
             justify="center"
         )
 
@@ -640,7 +639,7 @@ class PresentationCanvas(ttk.Frame):
             self.default_text = self.canvas.create_text(
                 w // 2, h // 2,
                 text="⚔️ DM - Dungeon Music ⚔️\n\nAguardando o Mestre...",
-                fill=self.TEXT_COLOR, font=("Segoe UI", 24, "bold"),
+                fill=COLORS["text"], font=("Segoe UI", 24, "bold"),
                 justify="center"
             )
             return
@@ -669,7 +668,7 @@ class PresentationCanvas(ttk.Frame):
                 self.canvas.create_rectangle(
                     sx - hw - 3, sy - hh - 3,
                     sx + hw + 3, sy + hh + 3,
-                    outline=self.SELECTION_COLOR, width=2, dash=(6, 4),
+                    outline=COLORS["accent"], width=2, dash=(6, 4),
                     tags=tag
                 )
 
@@ -681,7 +680,7 @@ class PresentationCanvas(ttk.Frame):
                 text_y = sy + new_h / 2 + 15
                 img.stats_id = self.canvas.create_text(
                     sx, text_y, text=stats_text,
-                    fill="#ffd700", font=("Consolas", 11, "bold"),
+                    fill=COLORS["crit"], font=("Consolas", 11, "bold"),
                     justify="center", anchor="n", tags=tag
                 )
                 bbox = self.canvas.bbox(img.stats_id)
@@ -689,7 +688,7 @@ class PresentationCanvas(ttk.Frame):
                     img.stats_bg_id = self.canvas.create_rectangle(
                         bbox[0] - 8, bbox[1] - 4,
                         bbox[2] + 8, bbox[3] + 4,
-                        fill="#1a1a2e", outline="#ffd700", stipple="gray50",
+                        fill=COLORS["bg_alt"], outline=COLORS["crit"], stipple="gray50",
                         tags=tag
                     )
                     self.canvas.tag_raise(img.stats_id, img.stats_bg_id)
@@ -724,7 +723,11 @@ class PresentationCanvas(ttk.Frame):
 
         for i, img_item in enumerate(visible_images):
             try:
-                pil_img = Image.open(img_item.file_path)
+                pil_img = self._pil_cache.get(img_item.file_path)
+                if pil_img is None:
+                    pil_img = Image.open(img_item.file_path)
+                    pil_img.load()
+                    self._pil_cache[img_item.file_path] = pil_img
 
                 # Posição: usa salva ou auto-calcula em grid
                 if img_item.position_x == 0 and img_item.position_y == 0:
@@ -751,10 +754,20 @@ class PresentationCanvas(ttk.Frame):
                                 max_dim / pil_img.height)
                     scale = max(0.1, ratio)
 
-                canvas_img = CanvasImage(
-                    img_item=img_item, pil_image=pil_img,
-                    x=x, y=y, scale=scale, z_order=self._z_counter
-                )
+                canvas_img = self._canvas_image_cache.get(img_item.file_path)
+                if canvas_img is not None:
+                    # Reaproveita a imagem já carregada/redimensionada (evita
+                    # reabrir do disco e refazer o resize a cada toggle de outra imagem)
+                    canvas_img.img_item = img_item
+                    canvas_img.x, canvas_img.y, canvas_img.scale = x, y, scale
+                    canvas_img.z_order = self._z_counter
+                    canvas_img.selected = False
+                else:
+                    canvas_img = CanvasImage(
+                        img_item=img_item, pil_image=pil_img,
+                        x=x, y=y, scale=scale, z_order=self._z_counter
+                    )
+                    self._canvas_image_cache[img_item.file_path] = canvas_img
                 self._z_counter += 1
                 self._canvas_images.append(canvas_img)
 
@@ -831,7 +844,7 @@ class PresentationCanvas(ttk.Frame):
         h = self.canvas.winfo_height() or 720
         self.default_text = self.canvas.create_text(
             w // 2, h // 2, text=text,
-            fill=self.TEXT_COLOR, font=("Segoe UI", font_size, "bold"),
+            fill=COLORS["text"], font=("Segoe UI", font_size, "bold"),
             justify="center"
         )
 
@@ -952,8 +965,9 @@ class PresentationCanvas(ttk.Frame):
 
     def _serialize_canvas(self) -> list:
         """Serializa estado do canvas para broadcast."""
-        return [
-            {
+        data = []
+        for img in self._canvas_images:
+            item = {
                 "name": img.img_item.name,
                 "file_path": img.img_item.file_path,
                 "x": img.x,
@@ -961,8 +975,11 @@ class PresentationCanvas(ttk.Frame):
                 "scale": img.scale,
                 "z_order": img.z_order,
             }
-            for img in self._canvas_images
-        ]
+            nm = self._network_manager
+            if nm is not None and nm.is_hosting:
+                item["shared_id"] = nm.register_shared_file(img.img_item.file_path)
+            data.append(item)
+        return data
 
     def _broadcast_canvas_state(self):
         """Envia estado atual do canvas para jogadores (apenas se hospedando)."""

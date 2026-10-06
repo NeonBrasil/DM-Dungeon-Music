@@ -11,19 +11,13 @@ import os
 import secrets
 import socketserver
 import threading
+import uuid
 from dataclasses import dataclass
 from http.server import BaseHTTPRequestHandler
 from typing import Callable, Dict, List, Optional
 
 import websockets
 from websockets.server import WebSocketServerProtocol
-
-# Eventos permitidos vindos de clientes (jogadores)
-ALLOWED_PLAYER_EVENTS = {
-    "volume_change",
-    "request_status",
-    "dice_roll",
-}
 
 # Eventos permitidos para broadcast do mestre
 ALLOWED_HOST_EVENTS = {
@@ -40,6 +34,26 @@ ALLOWED_HOST_EVENTS = {
     "audio_volume",
     "battlemap_update",
     "battlemap_full_sync",
+    # Eventos de sessão
+    "assigned_id",
+    # Eventos VTT
+    "card_entity_update",
+    "card_damage_applied",
+    "card_revealed",
+    "card_deleted",
+    "card_hidden",
+    "card_created",
+    "card_inspect_response",
+    "vtt_full_sync",
+}
+
+# Eventos permitidos vindos de clientes (jogadores)
+ALLOWED_PLAYER_EVENTS = {
+    "volume_change",
+    "request_status",
+    "dice_roll",
+    "card_update_own",
+    "card_inspect_request",
 }
 
 
@@ -72,12 +86,15 @@ class NetworkManager:
         self._on_player_joined_callbacks: List[Callable[[str], None]] = []
         self._client_ws: Optional[websockets.WebSocketClientProtocol] = None
         self._lock = threading.Lock()
+        self._state_lock = threading.Lock()  # protege _role, _loop, session_id, pin
         self._local_player_id: str = "host"
         self._last_connected_host: str = "127.0.0.1"
         # HTTP file server
         self._http_server: Optional[socketserver.TCPServer] = None
         self._http_thread: Optional[threading.Thread] = None
         self._audio_dirs: List[str] = []
+        self._shared_files: Dict[str, str] = {}
+        self._shared_files_lock = threading.Lock()
 
     # ── Listeners -----------------------------------------------------------
     def add_status_listener(self, callback: Callable[[str], None]):
@@ -116,20 +133,38 @@ class NetworkManager:
 
     @property
     def is_hosting(self) -> bool:
-        return self._role == "host"
+        with self._state_lock:
+            return self._role == "host"
 
     @property
     def is_client(self) -> bool:
-        return self._role == "client"
+        with self._state_lock:
+            return self._role == "client"
 
     def get_session_info(self) -> str:
-        if self.session_id and self.pin:
-            return f"Sessão {self.session_id} | PIN {self.pin}"
+        with self._state_lock:
+            sid, pin = self.session_id, self.pin
+        if sid and pin:
+            return f"Sessão {sid} | PIN {pin}"
         return "Offline"
 
-    # ── HTTP audio server ---------------------------------------------------
+    # ── HTTP file server ----------------------------------------------------
+    def register_shared_file(self, path: str) -> str:
+        """Registra arquivo visual para acesso read-only por /shared/<id>."""
+        if not path or not os.path.isfile(path):
+            return ""
+        abs_path = os.path.abspath(path)
+        ext = os.path.splitext(abs_path)[1]
+        with self._shared_files_lock:
+            for token, existing in self._shared_files.items():
+                if existing == abs_path:
+                    return token
+            token = f"{uuid.uuid4().hex}{ext}"
+            self._shared_files[token] = abs_path
+            return token
+
     def start_http_server(self, audio_dirs: List[str], port: int = 8766):
-        """Serve /audio/<filename> a partir de diretórios autorizados."""
+        """Serve /audio/<filename> e /shared/<id> para jogadores."""
         if self._http_server is not None:
             return
 
@@ -142,6 +177,20 @@ class NetworkManager:
                 pass
 
             def do_GET(self):
+                if self.path.startswith("/shared/"):
+                    raw_name = self.path[len("/shared/"):]
+                    token = os.path.basename(raw_name)
+                    if not token or token != raw_name:
+                        self.send_error(403)
+                        return
+                    with manager_ref._shared_files_lock:
+                        target = manager_ref._shared_files.get(token)
+                    if not target or not os.path.isfile(target):
+                        self.send_error(404)
+                        return
+                    self._serve_file(target)
+                    return
+
                 if not self.path.startswith("/audio/"):
                     self.send_error(404)
                     return
@@ -166,7 +215,9 @@ class NetworkManager:
                 if target is None:
                     self.send_error(404)
                     return
+                self._serve_file(target)
 
+            def _serve_file(self, target: str):
                 mime, _ = mimetypes.guess_type(target)
                 mime = mime or "application/octet-stream"
                 size = os.path.getsize(target)
@@ -212,6 +263,8 @@ class NetworkManager:
             self._http_server = None
             self._http_thread = None
             self._audio_dirs = []
+            with self._shared_files_lock:
+                self._shared_files.clear()
 
     # ── Hosting -------------------------------------------------------------
     def host(self, host: str = "0.0.0.0", port: int = 8765):
@@ -219,15 +272,17 @@ class NetworkManager:
         if self._thread and self._thread.is_alive():
             self._emit_status("Servidor já em execução")
             return
-        self.session_id = secrets.token_urlsafe(8)
-        self.pin = f"{secrets.randbelow(900000) + 100000:06d}"
-        self._role = "host"
-        self._local_player_id = "host"
+        with self._state_lock:
+            self.session_id = secrets.token_urlsafe(8)
+            self.pin = f"{secrets.randbelow(900000) + 100000:06d}"
+            self._role = "host"
+            self._local_player_id = "host"
         self._stop_event.clear()
 
         def _runner():
             asyncio.set_event_loop(asyncio.new_event_loop())
-            self._loop = asyncio.get_event_loop()
+            with self._state_lock:
+                self._loop = asyncio.get_event_loop()
             start_server = websockets.serve(self._handle_client, host, port, max_size=2 * 1024 * 1024)
             self._server = self._loop.run_until_complete(start_server)
             self._emit_status(
@@ -254,10 +309,15 @@ class NetworkManager:
             await websocket.close(code=4003, reason="Sessão/PIN inválidos")
             return
 
-        player_id = str(hello.get("player_id", "player"))[:24]
+        # FIX: ignorar player_id do cliente; gerar server-side para evitar spoofing
+        player_id = f"p_{uuid.uuid4().hex[:8]}"
         with self._lock:
             self._clients[player_id] = ClientInfo(player_id=player_id, websocket=websocket)
-        await websocket.send(json.dumps({"type": "welcome", "session_id": self.session_id}))
+        await websocket.send(json.dumps({
+            "type": "assigned_id",
+            "player_id": player_id,
+            "session_id": self.session_id,
+        }))
         self._emit_status(f"Jogador conectado: {player_id}")
         self._emit_player_joined(player_id)
 
@@ -270,6 +330,12 @@ class NetworkManager:
                 if data.get("type") not in ALLOWED_PLAYER_EVENTS:
                     await websocket.close(code=4004, reason="Evento não permitido")
                     return
+                # FIX 6: validar range de volume
+                if data["type"] == "volume_change":
+                    vol = data.get("volume")
+                    if not isinstance(vol, (int, float)) or not (0.0 <= float(vol) <= 1.0):
+                        await websocket.close(code=4005, reason="Volume inválido")
+                        return
                 data["player_id"] = player_id
                 self._emit_message(data)
         except websockets.ConnectionClosed:
@@ -281,12 +347,14 @@ class NetworkManager:
 
     def broadcast(self, event_type: str, payload: dict):
         """Envia evento do Mestre para todos os jogadores."""
-        if self._role != "host" or event_type not in ALLOWED_HOST_EVENTS:
+        with self._state_lock:
+            if self._role != "host" or event_type not in ALLOWED_HOST_EVENTS:
+                return
+            loop = self._loop
+        if not loop:
             return
         message = json.dumps({"type": event_type, **payload})
-        if not self._loop:
-            return
-        asyncio.run_coroutine_threadsafe(self._broadcast_async(message), self._loop)
+        asyncio.run_coroutine_threadsafe(self._broadcast_async(message), loop)
 
     async def _broadcast_async(self, message: str):
         with self._lock:
@@ -302,16 +370,18 @@ class NetworkManager:
         """Conecta como jogador."""
         if self._thread and self._thread.is_alive():
             self.stop()
-        self.session_id = session_id
-        self.pin = pin
-        self._role = "client"
-        self._local_player_id = player_id
-        self._last_connected_host = host
+        with self._state_lock:
+            self.session_id = session_id
+            self.pin = pin
+            self._role = "client"
+            self._local_player_id = player_id
+            self._last_connected_host = host
         self._stop_event.clear()
 
         def _runner():
             asyncio.set_event_loop(asyncio.new_event_loop())
-            self._loop = asyncio.get_event_loop()
+            with self._state_lock:
+                self._loop = asyncio.get_event_loop()
             self._loop.run_until_complete(self._client_loop(host, port, session_id, pin, player_id))
             self._cleanup()
 
@@ -320,28 +390,43 @@ class NetworkManager:
 
     async def _client_loop(self, host: str, port: int, session_id: str, pin: str, player_id: str):
         uri = f"ws://{host}:{port}"
-        try:
-            async with websockets.connect(uri, max_size=2 * 1024 * 1024) as ws:
-                self._client_ws = ws
-                hello = {"type": "hello", "session_id": session_id, "pin": pin, "player_id": player_id}
-                await ws.send(json.dumps(hello))
-                async for raw in ws:
-                    try:
-                        data = json.loads(raw)
-                    except json.JSONDecodeError:
-                        continue
-                    self._emit_message(data)
-        except Exception as exc:
-            self._emit_status(f"Erro ao conectar: {exc}")
+        retries = 0
+        max_retries = 3
+        while retries <= max_retries:
+            try:
+                async with websockets.connect(uri, max_size=2 * 1024 * 1024) as ws:
+                    retries = 0
+                    self._client_ws = ws
+                    hello = {"type": "hello", "session_id": session_id, "pin": pin, "player_id": player_id}
+                    await ws.send(json.dumps(hello))
+                    async for raw in ws:
+                        try:
+                            data = json.loads(raw)
+                        except json.JSONDecodeError:
+                            continue
+                        # FIX 5: cliente só aceita eventos whitelisted do host
+                        if data.get("type") not in ALLOWED_HOST_EVENTS:
+                            continue
+                        self._emit_message(data)
+            except Exception as exc:
+                retries += 1
+                if retries <= max_retries:
+                    self._emit_status(f"Reconectando ({retries}/{max_retries})…")
+                    await asyncio.sleep(2 ** retries)  # backoff: 2s, 4s, 8s
+                else:
+                    self._emit_status(f"Falha ao conectar: {exc}")
+                    break
 
     def send_to_host(self, event_type: str, payload: dict):
         """Jogador envia evento ao Mestre (whitelist)."""
-        if self._role != "client" or event_type not in ALLOWED_PLAYER_EVENTS:
-            return
-        if not self._loop or not self._client_ws:
+        with self._state_lock:
+            if self._role != "client" or event_type not in ALLOWED_PLAYER_EVENTS:
+                return
+            loop = self._loop
+        if not loop or not self._client_ws:
             return
         message = json.dumps({"type": event_type, **payload})
-        asyncio.run_coroutine_threadsafe(self._client_ws.send(message), self._loop)
+        asyncio.run_coroutine_threadsafe(self._client_ws.send(message), loop)
 
     # ── Encerramento --------------------------------------------------------
     def stop(self):
@@ -371,6 +456,7 @@ class NetworkManager:
         self._client_ws = None
         with self._lock:
             self._clients.clear()
-        self._role = "offline"
+        with self._state_lock:
+            self._role = "offline"
         if self._loop and self._loop.is_running():
             self._loop.call_soon_threadsafe(self._loop.stop)
