@@ -518,6 +518,14 @@ class PropertiesPanel(QDockWidget):
         if "rotation" in data:
             self._field_spin(lay, "rotation", "Rotação (°)", data, 0, 359)
 
+        # ── Visibilidade para jogadores ───────────────────────────────────
+        hidden_chk = QCheckBox("Oculto para jogadores")
+        hidden_chk.setChecked(bool(data.get("player_hidden")))
+        hidden_chk.setToolTip("Não aparece no mapa enviado aos jogadores (📡).\n"
+                              "Desmarque, aplique e envie de novo para revelar.")
+        lay.addWidget(hidden_chk)
+        self._fields["player_hidden"] = hidden_chk
+
         # ── Layer visibility ──────────────────────────────────────────────
         lay.addWidget(_sep())
         layer = data.get("layer", "")
@@ -627,6 +635,8 @@ class PropertiesPanel(QDockWidget):
                 new[key] = widget.value()
             elif isinstance(widget, QComboBox):
                 new[key] = widget.currentData()
+            elif isinstance(widget, QCheckBox):
+                new[key] = widget.isChecked()
             elif isinstance(widget, QPushButton):
                 # Color button
                 new[key] = widget.property("_color") or "#888888"

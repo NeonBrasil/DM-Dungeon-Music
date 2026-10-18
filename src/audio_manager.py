@@ -369,6 +369,7 @@ class AudioTrack:
         self._play_start_time = time.time()
         self.is_playing = True
         self.is_paused = False
+        self._manager._changed()
 
     def pause(self):
         """Pausa a faixa."""
@@ -376,6 +377,7 @@ class AudioTrack:
             self._pause_position = self.get_position()
             self.channel.pause()
             self.is_paused = True
+            self._manager._changed()
 
     def unpause(self):
         """Retoma a faixa pausada."""
@@ -383,6 +385,7 @@ class AudioTrack:
             self._play_start_time = time.time() - (self._pause_position - self._seek_offset)
             self.channel.unpause()
             self.is_paused = False
+            self._manager._changed()
 
     def stop(self):
         """Para a faixa e libera canal + memória."""
@@ -399,12 +402,14 @@ class AudioTrack:
         self._processed_raw = b""
         # Sound será recarregado via lazy-loading no próximo play
         self.sound = None
+        self._manager._changed()
 
     def set_volume(self, volume: float):
         """Define o volume (0.0 a 1.0)."""
         self.volume = max(0.0, min(1.0, volume))
         if self.sound:
             self.sound.set_volume(self.volume)
+        self._manager._changed()
 
     def get_position(self) -> float:
         """Retorna a posição atual de reprodução em segundos."""
@@ -462,6 +467,7 @@ class AudioTrack:
             self.is_paused = True
         else:
             self._pause_position = position_seconds
+        self._manager._changed()
 
     def is_active(self) -> bool:
         """Verifica se a faixa está tocando atualmente."""
@@ -525,6 +531,7 @@ class AudioTrack:
 
         if was_playing:
             self.play(loop=self.is_looping)
+        self._manager._changed()
 
     def _resample(self, raw: bytes, speed: float) -> bytes:
         """Resample PCM por fator de velocidade."""
@@ -602,6 +609,7 @@ class AudioTrack:
         self._seek_offset = 0.0
         self.is_playing = False
         self.is_paused = False
+        self._manager._changed()
 
 
 class AudioManager:
@@ -623,6 +631,11 @@ class AudioManager:
         self._channel_offset = channel_offset
         self.tracks: dict[int, AudioTrack] = {}
         self._next_id = 0
+        self.on_change = None  # callback() quando play/pause/stop/seek/volume/efeitos mudam
+
+    def _changed(self):
+        if self.on_change:
+            self.on_change()
 
     def add_track(self, file_path: str) -> AudioTrack:
         """Adiciona uma nova faixa (sem limite de quantidade)."""

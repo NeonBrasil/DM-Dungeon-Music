@@ -36,6 +36,11 @@ from .items import (
 )
 
 
+def _apply_player_hidden(gi: QGraphicsItem, data: dict):
+    """Itens ocultos para jogadores ficam translúcidos no editor do mestre."""
+    gi.setOpacity(0.35 if data.get("player_hidden") else 1.0)
+
+
 # ─── Undo Commands ────────────────────────────────────────────────────────────
 
 class AddItemCmd(QUndoCommand):
@@ -618,6 +623,7 @@ class MapScene(QGraphicsScene):
                 self.addItem(gi)
                 layer = data.get("layer", "note")
                 gi.setVisible(self._layers_visible.get(layer, True))
+                _apply_player_hidden(gi, data)
 
         # Fog
         if fog_state:
@@ -646,6 +652,7 @@ class MapScene(QGraphicsScene):
         if gi:
             self.addItem(gi)
             gi.setVisible(self._layers_visible.get(data.get("layer", "note"), True))
+            _apply_player_hidden(gi, data)
             self.clearSelection()
             gi.setSelected(True)
         self.map_changed.emit()
@@ -667,6 +674,7 @@ class MapScene(QGraphicsScene):
         for item in self.items():
             if isinstance(getattr(item, "data", None), dict) and item.data.get("id") == iid:
                 item.data.update(new_data)
+                _apply_player_hidden(item, new_data)
                 if hasattr(item, "sync_from_data"):
                     item.sync_from_data()
                 elif hasattr(item, "_rebuild"):

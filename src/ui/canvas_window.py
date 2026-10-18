@@ -116,81 +116,6 @@ def _draw_dice_overlay(canvas_widget: tk.Canvas, die: str, mod: int,
     )
 
 
-class DiceRollerFrame(ttk.Frame):
-    """Barra compacta de rolagem de dados para D&D."""
-
-    DICE = ["D3", "D4", "D6", "D8", "D10", "D20", "D100"]
-
-    def __init__(self, parent_canvas):
-        super().__init__(parent_canvas)
-        # parent_canvas é PresentationCanvas ou PlayerCanvas
-        self._canvas_widget = parent_canvas
-        self._selected_die = tk.StringVar(value="D20")
-        self._modifier = tk.IntVar(value=0)
-        self._result_label = None
-        self._die_buttons: dict[str, ttk.Button] = {}
-        self._build()
-
-    def _build(self):
-        ttk.Label(self, text="Dados:").pack(side="left", padx=(4, 2))
-
-        for die in self.DICE:
-            btn = ttk.Button(
-                self, text=die, width=4,
-                command=lambda d=die: self._select_die(d)
-            )
-            btn.pack(side="left", padx=1)
-            self._die_buttons[die] = btn
-
-        ttk.Separator(self, orient="vertical").pack(side="left", fill="y", padx=6)
-        ttk.Label(self, text="Mod:").pack(side="left", padx=(2, 1))
-        ttk.Spinbox(
-            self, from_=-20, to=20, textvariable=self._modifier, width=4
-        ).pack(side="left", padx=1)
-
-        ttk.Separator(self, orient="vertical").pack(side="left", fill="y", padx=6)
-        ttk.Button(self, text="Rolar", command=self._do_roll).pack(side="left", padx=2)
-
-        self._result_label = ttk.Label(self, text="", foreground=COLORS["primary_light"])
-        self._result_label.pack(side="left", padx=8)
-
-        self._select_die("D20")
-
-    def _select_die(self, die: str):
-        self._selected_die.set(die)
-        for d, btn in self._die_buttons.items():
-            # Toggle visual — use relief to indicate selection
-            btn.configure(style="Accent.TButton" if d == die else "TButton")
-
-    def _do_roll(self):
-        die = self._selected_die.get()
-        mod = self._modifier.get()
-        sides = int(die[1:])
-        rolled = random.randint(1, sides)
-        total = rolled + mod
-        mod_str = f"+{mod}" if mod > 0 else (str(mod) if mod < 0 else "")
-        self._result_label.config(text=f"{die}{mod_str} = {total}  (rolou {rolled})")
-
-        # Overlay no canvas
-        if hasattr(self._canvas_widget, 'show_dice_overlay'):
-            self._canvas_widget.show_dice_overlay(die, mod, rolled, total)
-
-        # Broadcast pela rede
-        nm = getattr(self._canvas_widget, '_network_manager', None)
-        if nm is None:
-            return
-        player_id = getattr(nm, '_local_player_id', 'host')
-        payload = {
-            "die": die, "modifier": mod,
-            "rolled": rolled, "total": total,
-            "player": player_id,
-        }
-        if nm.is_hosting:
-            nm.broadcast("dice_result", payload)
-        elif nm.is_client:
-            nm.send_to_host("dice_roll", payload)
-
-
 class PresentationCanvas(ttk.Frame):
     """
     Frame de apresentação canvas com:
@@ -229,8 +154,9 @@ class PresentationCanvas(ttk.Frame):
         # Sessão atual (para salvar posições)
         self._current_session: Session | None = None
 
-        # Rede (opcional) – injetado via set_network_manager()
-        self._network_manager = None
+        # Sala online (opcional) – injetada via set_room()
+        self._room = None
+        self._publish_pending = False
 
         self._build()
         self._bind_events()
@@ -373,6 +299,7 @@ class PresentationCanvas(ttk.Frame):
 
         self._zoom_label.config(text=f"{int(self._canvas_zoom * 100)}%")
         self._redraw()
+        self._broadcast_canvas_state()
 
     def _zoom_reset(self):
         """Reseta zoom e pan para o padrão."""
@@ -381,6 +308,7 @@ class PresentationCanvas(ttk.Frame):
         self._pan_y = 0.0
         self._zoom_label.config(text="100%")
         self._redraw()
+        self._broadcast_canvas_state()
 
     # ═══════════════════════════════════════
     # Eventos de mouse
@@ -416,6 +344,7 @@ class PresentationCanvas(ttk.Frame):
             # Move itens da imagem diretamente (evita delete+recreate)
             tag = f"img{id(img)}"
             self.canvas.move(tag, dx_screen, dy_screen)
+            self._broadcast_canvas_state()
 
     def _on_left_release(self, event):
         """Finaliza drag."""
@@ -440,6 +369,7 @@ class PresentationCanvas(ttk.Frame):
 
             # Move tudo no canvas diretamente (evita delete+recreate)
             self.canvas.move("all", dx_screen, dy_screen)
+            self._broadcast_canvas_state()
 
     def _on_right_release(self, event):
         """Finaliza pan."""
@@ -486,6 +416,7 @@ class PresentationCanvas(ttk.Frame):
                                    event.width // 2, event.height // 2)
             except tk.TclError:
                 pass
+        self._broadcast_canvas_state()
 
     # ═══════════════════════════════════════
     # Seleção
@@ -558,6 +489,7 @@ class PresentationCanvas(ttk.Frame):
             self._scale_var.set(100)
             self._redraw()
             self._update_info()
+            self._broadcast_canvas_state()
 
     # ═══════════════════════════════════════
     # Z-Order (Camadas)
@@ -702,6 +634,7 @@ class PresentationCanvas(ttk.Frame):
 
     def display_session_images(self, session: Session | None):
         """Exibe todas as imagens visíveis de uma sessão no canvas."""
+        self._broadcast_canvas_state()  # publicação é adiada: envia o estado final
         self._current_session = session
         self._canvas_images.clear()
         self._selected_image = None
@@ -718,8 +651,10 @@ class PresentationCanvas(ttk.Frame):
             self._redraw()
             return
 
-        canvas_w = self.canvas.winfo_width() or 1280
-        canvas_h = self.canvas.winfo_height() or 720
+        canvas_w = self.canvas.winfo_width()
+        canvas_h = self.canvas.winfo_height()
+        if canvas_w < 50 or canvas_h < 50:  # aba ainda não exibida (jogadores veem mesmo assim)
+            canvas_w, canvas_h = 1280, 720
 
         for i, img_item in enumerate(visible_images):
             try:
@@ -828,12 +763,14 @@ class PresentationCanvas(ttk.Frame):
         self._pan_x = canvas_w / (2 * self._canvas_zoom) - center_x
         self._pan_y = canvas_h / (2 * self._canvas_zoom) - center_y
         self._redraw()
+        self._broadcast_canvas_state()
 
     def set_background_color(self, color: str):
         """Altera a cor de fundo da apresentação."""
         self.configure(bg=color)
         self.canvas.configure(bg=color)
         self._redraw()
+        self._broadcast_canvas_state()
 
     def show_text(self, text: str, font_size: int = 24):
         """Exibe um texto centralizado na tela."""
@@ -956,43 +893,44 @@ class PresentationCanvas(ttk.Frame):
         )
 
     # ═══════════════════════════════════════
-    # Rede / Multiplayer
+    # Sala online (jogadores no navegador)
     # ═══════════════════════════════════════
 
-    def set_network_manager(self, network_manager):
-        """Injeta o NetworkManager para sincronizar estado do canvas."""
-        self._network_manager = network_manager
+    def set_room(self, room):
+        """Injeta a sala online: jogadores veem a lousa pela câmera do mestre."""
+        self._room = room
 
-    def _serialize_canvas(self) -> list:
-        """Serializa estado do canvas para broadcast."""
-        data = []
-        for img in self._canvas_images:
-            item = {
-                "name": img.img_item.name,
-                "file_path": img.img_item.file_path,
+    def _serialize_canvas(self) -> dict:
+        """Estado da lousa para os jogadores: imagens visíveis + retângulo da câmera."""
+        w = self.canvas.winfo_width()
+        h = self.canvas.winfo_height()
+        if w < 50 or h < 50:  # aba ainda não exibida
+            w, h = 1280, 720
+        x0, y0 = self._screen_to_world(0, 0)
+        return {
+            "bg": self.canvas.cget("bg"),
+            "view": [x0, y0, w / self._canvas_zoom, h / self._canvas_zoom],
+            "zoom": self._canvas_zoom,
+            "items": [{  # lista já está na ordem de desenho (z-order)
+                "url": self._room.file_url(img.img_item.file_path),
                 "x": img.x,
                 "y": img.y,
                 "scale": img.scale,
-                "z_order": img.z_order,
-            }
-            nm = self._network_manager
-            if nm is not None and nm.is_hosting:
-                item["shared_id"] = nm.register_shared_file(img.img_item.file_path)
-            data.append(item)
-        return data
+                "stats": img.img_item.stats,
+            } for img in self._canvas_images],
+        }
 
     def _broadcast_canvas_state(self):
-        """Envia estado atual do canvas para jogadores (apenas se hospedando)."""
-        nm = self._network_manager
-        if nm is None or not nm.is_hosting:
+        """Publica a lousa para os jogadores (no máx. ~20x/s durante arrastos)."""
+        if self._room is None or not self._room.is_open or self._publish_pending:
             return
-        nm.broadcast("canvas_update", {"images": self._serialize_canvas()})
+        self._publish_pending = True
+        self.after(50, self._publish_now)
 
-    def show_dice_overlay(self, die: str, mod: int, rolled: int, total: int,
-                           player: str = ""):
-        """Exibe overlay de resultado de dado no canvas por 3 segundos."""
-        _draw_dice_overlay(self.canvas, die, mod, rolled, total, player)
-        self.after(3000, lambda: self.canvas.delete("dice_overlay"))
+    def _publish_now(self):
+        self._publish_pending = False
+        if self._room is not None and self._room.is_open:
+            self._room.publish("board", self._serialize_canvas())
 
     def destroy(self):
         self._animating = False

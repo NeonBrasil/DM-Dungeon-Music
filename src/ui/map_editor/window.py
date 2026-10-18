@@ -6,6 +6,7 @@ Map Editor — MapEditorWindow (QMainWindow).
 import os
 import json
 import copy
+import time
 import uuid
 
 from PySide6.QtWidgets import (
@@ -14,11 +15,11 @@ from PySide6.QtWidgets import (
     QInputDialog, QMessageBox, QFileDialog, QComboBox,
     QSpinBox, QCheckBox, QFrame, QSizePolicy,
 )
-from PySide6.QtCore  import Qt, QTimer, Signal, QSettings
+from PySide6.QtCore  import Qt, QTimer, Signal, QSettings, QRectF
 from PySide6.QtGui   import QAction, QKeySequence, QIcon, QCloseEvent
 
 from .constants import (
-    LAYER_ORDER, LAYER_LABELS, BG_STYLES, APP_QSS, DATA_DIR,
+    LAYER_ORDER, LAYER_LABELS, BG_STYLES, APP_QSS, DATA_DIR, PLAYER_MAP_PATH,
 )
 from .scene  import MapScene, MapView, SelectTool, FogPaintTool
 from .panels import ToolSidebar, PropertiesPanel
@@ -321,6 +322,16 @@ class MapEditorWindow(QMainWindow):
             tb.addWidget(btn)
             btn.clicked.connect(slot)
 
+        tb.addSeparator()
+
+        btn = QPushButton("📡 Mostrar aos jogadores")
+        btn.setProperty("accent", True)
+        btn.setFixedHeight(28)
+        btn.setToolTip("Envia este nível para a sala online.\n"
+                       "Itens ocultos para jogadores e áreas sob névoa não aparecem.")
+        btn.clicked.connect(self._publish_players)
+        tb.addWidget(btn)
+
     # ── File operations ───────────────────────────────────────────────────
 
     def _load_or_init(self):
@@ -412,6 +423,66 @@ class MapEditorWindow(QMainWindow):
             self._status.showMessage(f"Exportado: {path}", 4000)
         else:
             QMessageBox.warning(self, "Erro", "Não foi possível salvar o PNG.")
+
+    def _publish_players(self):
+        """Renderiza o nível atual como os jogadores devem vê-lo em PLAYER_MAP_PATH;
+        a sala online do app principal detecta o arquivo e envia aos jogadores."""
+        from PySide6.QtGui import QImage, QPainter
+        scene = self._scene
+        fog   = scene.fog_item
+        scene.blockSignals(True)   # não reconstrói o painel de propriedades
+        selected = scene.selectedItems()
+        scene.clearSelection()     # sem contornos de seleção na imagem
+        # Esconde itens ocultos p/ jogadores e auxiliares de ferramenta (cursor, prévias)
+        hidden = [
+            it for it in scene.items()
+            if it.isVisible() and it is not fog and (
+                not isinstance(getattr(it, "data", None), dict) or it.data.get("player_hidden"))
+        ]
+        old_alpha = fog.alpha
+        try:
+            for it in hidden:
+                it.setVisible(False)
+            rect = QRectF()
+            for it in scene.items():
+                if it.isVisible() and isinstance(getattr(it, "data", None), dict):
+                    rect = rect.united(it.sceneBoundingRect())
+            if rect.isEmpty():
+                self._status.showMessage("Nada visível para os jogadores neste nível.", 4000)
+                return
+            rect.adjust(-60, -60, 60, 60)
+            scale = min(2.0, 4096 / max(rect.width(), rect.height()))
+            img = QImage(max(1, int(rect.width() * scale)), max(1, int(rect.height() * scale)),
+                         QImage.Format.Format_RGB32)
+            img.fill(0)
+            fog.alpha = 255          # névoa totalmente opaca para jogadores
+            painter = QPainter(img)
+            painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+            painter.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform)
+            scene.render(painter, QRectF(img.rect()), rect)
+            painter.end()
+        finally:
+            fog.alpha = old_alpha
+            for it in hidden:
+                it.setVisible(True)
+            for it in selected:
+                it.setSelected(True)
+            scene.blockSignals(False)
+
+        tmp = PLAYER_MAP_PATH + ".tmp.png"
+        if not img.save(tmp, "PNG"):
+            QMessageBox.warning(self, "Erro", "Não foi possível gerar o mapa dos jogadores.")
+            return
+        for _ in range(20):   # o app principal pode estar lendo o arquivo neste instante
+            try:
+                os.replace(tmp, PLAYER_MAP_PATH)
+                break
+            except PermissionError:
+                time.sleep(0.05)
+        else:
+            QMessageBox.warning(self, "Erro", "Arquivo do mapa dos jogadores está em uso. Tente de novo.")
+            return
+        self._status.showMessage("📡 Mapa enviado aos jogadores.", 4000)
 
     def _confirm_discard(self) -> bool:
         if not self._dirty:

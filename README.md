@@ -16,7 +16,7 @@ Desktop toolkit for **RPG Game Masters**. Manage music, sound effects, images, p
 | 💥 Sound effects | Dedicated SFX tab for short cues (weapons, doors, ambience) |
 | 🖼️ Image sessions | Organize battle maps and handouts by session; toggle visibility |
 | 🎬 Presentation canvas | Zoom/pan, z-order, particles; share via screen share | 
-| 🌐 Online (beta) | Host/join via WebSocket with session ID + PIN; currently logs events only |
+| 🌐 Online room | Players join from the browser via a link (LAN or free VPN): music/SFX, board through the GM camera, published map |
 | 💾 Persistence | Sessions and tracks auto-saved; metadata cache for fast startup |
 | 🌙 Dark theme | Modern dark UI; multilingual (pt-BR, en-US, es-ES) |
 
@@ -34,7 +34,6 @@ Desktop toolkit for **RPG Game Masters**. Manage music, sound effects, images, p
 | pygame | 2.5.0 | Audio engine |
 | Pillow | 10.0.0 | Image handling |
 | mutagen | 1.47.0 | Audio metadata |
-| websockets | 12.0 | Online beta (host/join) |
 | pyinstaller | 6.0.0 | Optional: build executable |
 
 Install them with `pip install -r requirements.txt`.
@@ -86,12 +85,12 @@ DM-DungeonMusic/
 ├── src/
 │   ├── audio_manager.py    # Audio engine (tracks, FX, cache)
 │   ├── session_manager.py  # Image and audio session persistence
-│   ├── network_manager.py  # WebSocket host/join (beta)
+│   ├── room_server.py      # Online room: HTTP + SSE for browser players
 │   └── ui/
 │       ├── main_window.py  # Main window with tabs
 │       ├── audio_panel.py  # Music/SFX management
 │       ├── image_panel.py  # Image sessions
-│       ├── network_panel.py# Online tab UI (host/join)
+│       ├── network_panel.py# Online tab UI (open room, links)
 │       ├── canvas_window.py# Presentation canvas
 │       └── theme.py        # Dark theme
 ```
@@ -104,9 +103,8 @@ DM-DungeonMusic/
 2) **SFX tab** — Same controls for short sound effects.
 3) **Images tab** — Create sessions, add images, toggle which are visible.
 4) **Presentation tab** — Interactive canvas for players (zoom, pan, z-order).
-5) **Online tab (beta)** — Host starts a session (session ID + PIN). Players join with host/port/session/PIN; events are logged for now (wire to playback/map actions as next step).
+5) **Online tab** — Open a room and send the link to players. They open it in the browser (no install): they hear what you play (with their own music/SFX volume), see the Presentation board through your camera and the map you send with 📡 in the Map Editor. Over the internet, use a free VPN (Radmin VPN, Hamachi, ZeroTier).
 
-Pro tip: share the Presentation tab via Discord/Zoom/OBS for remote tables.
 
 ---
 

@@ -12,16 +12,6 @@ if errorlevel 1 (
 )
 
 echo.
-echo Detectando caminho do websockets...
-for /f "tokens=*" %%i in ('python -c "import websockets,os;print(os.path.dirname(websockets.__file__))"') do set WS_PATH=%%i
-if "%WS_PATH%"=="" (
-    echo ERRO: websockets nao encontrado. Instale com: pip install websockets
-    pause
-    exit /b 1
-)
-echo websockets encontrado em: %WS_PATH%
-
-echo.
 echo Gerando executável...
 echo.
 
@@ -32,7 +22,6 @@ python -m PyInstaller --onefile ^
     --paths "B:\conda\envs\ai-local\Library\bin" ^
     --add-data "src;src" ^
     --add-data "DM-dungeoun-music.ico;." ^
-    --add-data "%WS_PATH%;websockets" ^
     --collect-data ttkbootstrap ^
     --hidden-import pygame ^
     --hidden-import PIL ^
@@ -40,7 +29,6 @@ python -m PyInstaller --onefile ^
     --hidden-import mutagen.mp3 ^
     --hidden-import mutagen.id3 ^
     --hidden-import mutagen.flac ^
-    --hidden-import websockets ^
     --hidden-import ttkbootstrap ^
     main.py
 

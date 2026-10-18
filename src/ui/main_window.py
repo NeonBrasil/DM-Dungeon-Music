@@ -9,13 +9,15 @@ from tkinter import ttk, messagebox
 import sys
 import os
 import json
+import time
 
 # Adiciona o diretório raiz ao path
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from src.audio_manager import AudioManager
 from src.session_manager import SessionManager, AudioSessionManager
-from src.network_manager import NetworkManager
+from src.room_server import RoomServer
+from src.ui.map_editor.constants import PLAYER_MAP_PATH
 from src.ui.audio_panel import AudioPanel, SfxPanel
 from src.ui.image_panel import ImagePanel
 from src.ui.canvas_window import PresentationCanvas
@@ -49,22 +51,20 @@ class MainWindow:
         self.audio_manager = AudioManager(channel_offset=0)
         self.sfx_manager = AudioManager(channel_offset=16)   # Canais 16-31 para SFX
         self.session_manager = SessionManager()
-        self.network_manager = NetworkManager()
+        self.room = RoomServer()
         self.card_manager = None
         if SHOW_VTT:
             from src.card_manager import CardManager
             self.card_manager = CardManager()
             self.card_manager.load("master_cards.json")
 
-        # Estado para diff de áudio (broadcast multiplayer)
-        self._last_playing_music: set[int] = set()
-        self._last_playing_sfx: set[int] = set()
-        self._player_window = None
-
-        # Listeners de rede
-        self.network_manager.add_status_listener(self._on_network_status)
-        self.network_manager.add_message_listener(self._on_network_message)
-        self.network_manager.add_player_joined_listener(self._on_player_joined)
+        # Espelhamento para a sala online (jogadores no navegador)
+        self._audio_sig = None
+        self._audio_sync_pending = False
+        self._map_mtime = None
+        self._map_url = ""
+        self.audio_manager.on_change = self._queue_audio_sync
+        self.sfx_manager.on_change = self._queue_audio_sync
 
         # Sessões de áudio (músicas e efeitos sonoros)
         self.music_session_mgr = AudioSessionManager(subfolder="music")
@@ -235,7 +235,7 @@ class MainWindow:
 
         self.presentation_canvas = PresentationCanvas(pres_tab)
         self.presentation_canvas.pack(fill="both", expand=True)
-        self.presentation_canvas.set_network_manager(self.network_manager)
+        self.presentation_canvas.set_room(self.room)
 
         self.battlemap = None
         if SHOW_BATTLEMAP:
@@ -246,7 +246,6 @@ class MainWindow:
             self.notebook.add(bmap_tab, text="⚔ BattleMap")
             self.battlemap = BattleMapPanel(bmap_tab)
             self.battlemap.pack(fill="both", expand=True)
-            self.battlemap.set_network_manager(self.network_manager)
 
         self.vtt_canvas = None
         if SHOW_VTT and self.card_manager is not None:
@@ -257,12 +256,11 @@ class MainWindow:
             self.notebook.add(vtt_tab, text="🃏 VTT")
             self.vtt_canvas = VTTCanvas(vtt_tab, self.card_manager)
             self.vtt_canvas.pack(fill="both", expand=True)
-            self.vtt_canvas.set_network_manager(self.network_manager)
 
-        # Tab Online / Multiplayer
+        # Tab Online (sala para jogadores no navegador)
         online_tab = ttk.Frame(self.notebook, padding=5)
         self.notebook.add(online_tab, text=t("main.tabs.online"))
-        NetworkPanel(online_tab, self.network_manager).pack(fill="both", expand=True)
+        NetworkPanel(online_tab, self.room, on_open=self._on_room_open).pack(fill="both", expand=True)
 
         from src.ui.map_launcher import MapLauncherPanel
 
@@ -329,9 +327,6 @@ class MainWindow:
         """Atualiza o canvas de apresentação com as imagens visíveis."""
         session = self.image_panel.current_session
         self.presentation_canvas.display_session_images(session)
-        if self.network_manager.is_hosting:
-            canvas_state = self.presentation_canvas._serialize_canvas()
-            self.network_manager.broadcast("canvas_update", {"images": canvas_state})
 
     def _set_bg(self, color: str):
         """Altera o fundo da apresentação."""
@@ -348,121 +343,71 @@ class MainWindow:
                    + sum(1 for t in self.sfx_manager.tracks.values() if t.is_active()))
         self._track_info_label.config(text=t("main.status.tracks", count=count, playing=playing))
 
-        # Broadcast mudanças de áudio para jogadores
-        if self.network_manager.is_hosting:
-            self._check_audio_changes()
+        # Espelha áudio e mapa para os jogadores
+        if self.room.is_open:
+            self._sync_audio()
+            self._sync_player_map()
 
         self.root.after(500, self._periodic_update)
 
-    def _check_audio_changes(self):
-        """Detecta mudanças de reprodução, faz broadcast e atualiza dirs HTTP."""
-        now_music = {tid for tid, tr in self.audio_manager.tracks.items() if tr.is_active()}
-        for tid in now_music - self._last_playing_music:
-            tr = self.audio_manager.tracks.get(tid)
-            if tr:
-                # Atualiza dirs do HTTP server dinamicamente
-                self.network_manager.add_audio_dir(os.path.dirname(tr.file_path))
-                self.network_manager.broadcast("play_track", {
-                    "filename": os.path.basename(tr.file_path),
-                    "loop": tr.is_looping,
-                    "volume": tr.volume,
-                })
-        for tid in self._last_playing_music - now_music:
-            tr = self.audio_manager.tracks.get(tid)
-            if tr:
-                self.network_manager.broadcast("stop_track", {
-                    "filename": os.path.basename(tr.file_path),
-                })
-        self._last_playing_music = now_music
+    # ── Sala online ─────────────────────────────────────────────────────────
+    def _on_room_open(self):
+        """Sala recém-aberta: publica o estado atual da mesa."""
+        self._audio_sig = None
+        self._map_mtime = None
+        self.presentation_canvas._broadcast_canvas_state()
+        self._sync_audio()
+        self._sync_player_map()
 
-        now_sfx = {tid for tid, tr in self.sfx_manager.tracks.items() if tr.is_active()}
-        for tid in now_sfx - self._last_playing_sfx:
-            tr = self.sfx_manager.tracks.get(tid)
-            if tr:
-                # Atualiza dirs do HTTP server dinamicamente
-                self.network_manager.add_audio_dir(os.path.dirname(tr.file_path))
-                self.network_manager.broadcast("sfx_play", {
-                    "filename": os.path.basename(tr.file_path),
-                    "volume": tr.volume,
-                })
-        self._last_playing_sfx = now_sfx
+    def _queue_audio_sync(self):
+        """Play/pause/stop/seek/volume: agrupa mudanças e envia em seguida
+        (efeitos curtos chegam aos jogadores mesmo terminando antes do próximo ciclo)."""
+        if self.room.is_open and not self._audio_sync_pending:
+            self._audio_sync_pending = True
+            self.root.after(30, self._sync_audio)
 
-    # ── Multiplayer handlers ────────────────────────────────────────────────
-    def _on_network_status(self, message: str):
-        """Reage ao status da rede (ex: servidor iniciado → HTTP server)."""
-        if "Hospedando em" in message:
-            dirs = list({
-                os.path.dirname(tr.file_path)
-                for tr in list(self.audio_manager.tracks.values()) + list(self.sfx_manager.tracks.values())
-                if os.path.isfile(getattr(tr, "file_path", ""))
-            })
-            self.network_manager.start_http_server(dirs, port=8766)
-            if self.vtt_canvas is not None:
-                self.root.after(0, lambda: self.vtt_canvas.set_role(True, "host"))
-
-    def _on_network_message(self, payload: dict):
-        """Processa mensagens recebidas pela rede."""
-        event = payload.get("type")
-        if event == "assigned_id":
-            # Servidor atribuiu ID ao jogador — atualizar role no VTT
-            pid = payload.get("player_id", "")
-            if self.vtt_canvas is not None:
-                self.root.after(0, lambda: self.vtt_canvas.set_role(False, pid))
-            self.root.after(0, self._open_player_window)
-        elif event == "welcome":
-            # Fallback para versões antigas do servidor
-            self.root.after(0, self._open_player_window)
-        elif event == "dice_roll" and self.network_manager.is_hosting:
-            # Host re-transmite resultado para todos e exibe localmente
-            self.network_manager.broadcast("dice_result", payload)
-            self.root.after(0, lambda p=payload: self._handle_dice_result(p))
-        elif event == "dice_result":
-            # Resultado de dado recebido (quando jogando como cliente)
-            self.root.after(0, lambda p=payload: self._handle_dice_result(p))
-
-    def _on_player_joined(self, _player_id: str):
-        """Envia estado atual ao jogador que acabou de entrar."""
-        canvas_state = self.presentation_canvas._serialize_canvas()
-        self.network_manager.broadcast("canvas_full_sync", {"images": canvas_state})
-        if self.battlemap is not None:
-            bmap_state = self.battlemap.serialize_state()
-            self.network_manager.broadcast("battlemap_full_sync", bmap_state)
-        if self.vtt_canvas is not None:
-            vtt_state = self.vtt_canvas.get_full_sync_payload()
-            self.network_manager.broadcast("vtt_full_sync", vtt_state)
-        # Broadcast de faixas atualmente tocando
-        for tr in self.audio_manager.tracks.values():
-            if tr.is_active():
-                self.network_manager.broadcast("play_track", {
-                    "filename": os.path.basename(tr.file_path),
-                    "loop": tr.is_looping,
-                    "volume": tr.volume,
-                })
-
-    def _open_player_window(self):
-        """Abre janela de jogador após conexão bem-sucedida."""
-        if self._player_window and self._player_window.winfo_exists():
+    def _sync_audio(self):
+        """Publica as faixas em reprodução (música e efeitos) se algo mudou."""
+        self._audio_sync_pending = False
+        if not self.room.is_open:
             return
-        from src.ui.player_window import PlayerWindow
-        self._player_window = PlayerWindow(
-            self.root,
-            self.network_manager,
-            AudioManager(channel_offset=32),
-        )
+        tracks = []
+        for kind, manager in (("music", self.audio_manager), ("sfx", self.sfx_manager)):
+            for tr in manager.tracks.values():
+                if not tr.is_playing:  # pausadas continuam com is_playing=True
+                    continue
+                url = self.room.file_url(tr.file_path)
+                tracks.append({
+                    "id": f"{kind}:{tr.track_id}:{url}",
+                    "kind": kind,
+                    "url": url,
+                    "vol": round(tr.volume, 3),
+                    "loop": tr.is_looping,
+                    "paused": tr.is_paused,
+                    "speed": tr.speed_factor,
+                    "pos": round(tr.get_position(), 3),
+                    "epoch": tr._play_start_time,  # muda a cada play/seek/retomada
+                })
+        sig = [(x["id"], x["vol"], x["loop"], x["paused"], x["speed"], x["epoch"]) for x in tracks]
+        if sig != self._audio_sig:
+            self._audio_sig = sig
+            self.room.publish("audio", {"t": time.time(), "tracks": tracks})
 
-    def _handle_dice_result(self, payload: dict):
-        """Exibe resultado de dado no battlemap e adiciona ao histórico."""
-        die = payload.get("die", "D20")
-        mod = payload.get("modifier", 0)
-        rolled = payload.get("rolled", 0)
-        total = payload.get("total", 0)
-        player = payload.get("player", "")
-        if self.battlemap is not None:
-            self.battlemap.show_dice_overlay(die, mod, rolled, total, player)
-        elif self.vtt_canvas is not None:
-            self.vtt_canvas.show_dice_overlay(die, mod, rolled, total, player)
-        else:
-            self.presentation_canvas.show_dice_overlay(die, mod, rolled, total, player)
+    def _sync_player_map(self):
+        """Envia o mapa publicado no Editor de Mapas (📡 Mostrar aos jogadores)."""
+        try:
+            mtime = os.stat(PLAYER_MAP_PATH).st_mtime_ns
+            if mtime == self._map_mtime:
+                return
+            with open(PLAYER_MAP_PATH, "rb") as f:
+                data = f.read()
+        except OSError:
+            return  # nada publicado ainda, ou o editor está gravando agora
+        self._map_mtime = mtime
+        if self._map_url:
+            self.room.drop(self._map_url)
+        self._map_url = self.room.blob_url(data, ".png")
+        self.room.publish("map", {"url": self._map_url})
 
     def _show_about_rpg(self):
         """Exibe popup explicativo sobre RPG e a história do projeto."""
@@ -570,9 +515,9 @@ class MainWindow:
         # Salva cache de metadados
         from src.audio_manager import _save_cache
         _save_cache()
-        # Encerra rede, se ativa
+        # Fecha a sala online, se aberta
         try:
-            self.network_manager.stop()
+            self.room.close()
         except Exception:
             pass
         # Para todo o áudio de uma vez e fecha imediatamente

@@ -1065,6 +1065,7 @@ class FogItem(QGraphicsItem):
         self.setFlag(QGraphicsItem.GraphicsItemFlag.ItemIsMovable,    False)
         self.setAcceptedMouseButtons(Qt.MouseButton.NoButton)
         self._enabled   = False
+        self.alpha      = 248        # 255 ao publicar para jogadores (nada vaza)
         self._revealed:  list = []   # circles that are transparent (holes)
         self._concealed: list = []   # circles that re-cover revealed holes
         self._fog_path: QPainterPath | None = None
@@ -1146,7 +1147,7 @@ class FogItem(QGraphicsItem):
             self._rebuild()
         painter.save()
         painter.setPen(Qt.PenStyle.NoPen)
-        painter.setBrush(QBrush(QColor(8, 8, 20, 248)))
+        painter.setBrush(QBrush(QColor(8, 8, 20, self.alpha)))
         painter.drawPath(self._fog_path)
         painter.restore()
 

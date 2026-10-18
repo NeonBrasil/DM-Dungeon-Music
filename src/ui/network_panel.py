@@ -1,121 +1,77 @@
 """
-Painel de conexão online (host/join) para DM - Dungeon Music.
+Painel da sala online (mestre). Jogadores entram pelo navegador com o link.
 """
 
 import tkinter as tk
 from tkinter import ttk
-from tkinter import scrolledtext
 
 from src.i18n.translator import t
-from src.network_manager import NetworkManager
+from src.room_server import RoomServer, local_ips
 from src.ui.theme import COLORS
 
 
+def _ip_label(ip: str) -> str:
+    if ip.startswith("25."):
+        return "Hamachi"
+    if ip.startswith("26."):
+        return "Radmin VPN"
+    return t("network.room.lan")
+
+
 class NetworkPanel(ttk.Frame):
-    def __init__(self, master, network_manager: NetworkManager, **kwargs):
+    def __init__(self, master, room: RoomServer, on_open=None, **kwargs):
         super().__init__(master, **kwargs)
-        self.network = network_manager
+        self.room = room
+        self._on_open = on_open  # callback após abrir a sala (publica estado inicial)
         self._build_ui()
-        self.network.add_status_listener(self._on_status)
-        self.network.add_message_listener(self._on_message)
-        self._poll_player_count()
+        self._poll_players()
 
     def _build_ui(self):
         title_row = ttk.Frame(self)
         title_row.pack(fill="x", pady=(0, 8))
         ttk.Label(title_row, text=t("network.title"), style="Title.TLabel").pack(side="left")
         ttk.Button(
-            title_row, text="❓ Como funciona?",
+            title_row, text=t("network.room.help"),
             command=self._show_tutorial
         ).pack(side="right", padx=(0, 4))
 
-        top = ttk.Frame(self)
-        top.pack(fill="x")
+        controls = ttk.Frame(self)
+        controls.pack(fill="x")
+        ttk.Label(controls, text=t("network.port.label")).pack(side="left")
+        self.port_entry = ttk.Entry(controls, width=7)
+        self.port_entry.insert(0, "8765")
+        self.port_entry.pack(side="left", padx=(6, 10))
+        self._open_btn = ttk.Button(controls, text=t("network.room.open"),
+                                    style="Accent.TButton", command=self._on_open_room)
+        self._open_btn.pack(side="left", padx=(0, 4))
+        self._close_btn = ttk.Button(controls, text=t("network.room.close"),
+                                     command=self._on_close_room, state="disabled")
+        self._close_btn.pack(side="left")
 
-        # ── Coluna esquerda: controles de host ──────────────────────────────
-        host_frame = ttk.LabelFrame(top, text=t("network.host.title"), padding=10)
-        host_frame.grid(row=0, column=0, sticky="nsew", padx=(0, 6))
+        self.status = ttk.Label(self, text=t("network.status.offline"), foreground=COLORS["text_muted"])
+        self.status.pack(anchor="w", pady=(10, 4))
 
-        self.host_entry = self._labeled_entry(host_frame, t("network.host.label"), "0.0.0.0")
-        self.port_entry = self._labeled_entry(host_frame, t("network.port.label"), "8765")
-        ttk.Button(host_frame, text=t("network.host.button"), command=self._on_host).pack(fill="x", pady=(6, 2))
-        ttk.Button(host_frame, text=t("network.host.stop"), command=self._on_stop).pack(fill="x")
+        self._links_frame = ttk.Frame(self)
+        self._links_frame.pack(fill="x")
 
-        # ── Painel de sessão ativa (oculto até hospedar) ────────────────────
-        self._session_info_frame = ttk.LabelFrame(top, text="Sessão Ativa", padding=10)
-        self._session_info_frame.grid(row=0, column=1, sticky="nsew", padx=(0, 6))
-        self._session_info_frame.grid_remove()  # hidden initially
-
-        ttk.Label(self._session_info_frame, text="Código:", foreground=COLORS["text_muted"]).pack(anchor="w")
-        self._session_code_label = ttk.Label(
-            self._session_info_frame, text="—",
-            font=("Consolas", 14, "bold"), foreground=COLORS["accent"]
-        )
-        self._session_code_label.pack(anchor="w", pady=(0, 4))
-
-        ttk.Label(self._session_info_frame, text="PIN:", foreground=COLORS["text_muted"]).pack(anchor="w")
-        self._pin_label = ttk.Label(
-            self._session_info_frame, text="—",
-            font=("Consolas", 18, "bold"), foreground=COLORS["success"]
-        )
-        self._pin_label.pack(anchor="w", pady=(0, 4))
-
-        ttk.Button(
-            self._session_info_frame, text="Copiar Código",
-            command=self._copy_code
-        ).pack(fill="x", pady=(2, 4))
-
-        self._player_count_label = ttk.Label(
-            self._session_info_frame, text="Jogadores: 0", foreground=COLORS["text_muted"]
-        )
-        self._player_count_label.pack(anchor="w")
-
-        # ── Coluna direita: controles de join ───────────────────────────────
-        join_frame = ttk.LabelFrame(top, text=t("network.join.title"), padding=10)
-        join_frame.grid(row=0, column=2, sticky="nsew")
-
-        self.join_host_entry = self._labeled_entry(join_frame, t("network.host.label"), "127.0.0.1")
-        self.join_port_entry = self._labeled_entry(join_frame, t("network.port.label"), "8765")
-        self.session_entry = self._labeled_entry(join_frame, t("network.session.label"), "")
-        self.pin_entry = self._labeled_entry(join_frame, t("network.pin.label"), "")
-        self.player_entry = self._labeled_entry(join_frame, t("network.player.label"), "player-1")
-        ttk.Button(join_frame, text=t("network.join.button"), command=self._on_join).pack(fill="x", pady=(6, 2))
-        ttk.Button(join_frame, text=t("network.join.disconnect"), command=self._on_stop).pack(fill="x")
-
-        top.columnconfigure(0, weight=1)
-        top.columnconfigure(1, weight=1)
-        top.columnconfigure(2, weight=1)
-
-        # ── Status geral ────────────────────────────────────────────────────
-        self.host_status = ttk.Label(self, text=t("network.status.offline"), foreground=COLORS["text_muted"])
-        self.host_status.pack(anchor="w", pady=(8, 0))
-
-        # ── Log ─────────────────────────────────────────────────────────────
-        log_frame = ttk.LabelFrame(self, text=t("network.log.title"), padding=10)
-        log_frame.pack(fill="both", expand=True, pady=(10, 0))
-        self.log_box = scrolledtext.ScrolledText(
-            log_frame, height=8, state="disabled", wrap="word",
-            bg=COLORS["surface"], fg=COLORS["text"],
-            insertbackground=COLORS["text"],
-            selectbackground=COLORS["primary"],
-        )
-        self.log_box.pack(fill="both", expand=True)
+        self._players_label = ttk.Label(self, text="", foreground=COLORS["text_muted"])
+        self._players_label.pack(anchor="w", pady=(10, 0))
 
     def _show_tutorial(self):
-        """Exibe popup com tutorial de como usar o multiplayer."""
+        """Exibe popup com tutorial da sala online."""
         win = tk.Toplevel(self)
-        win.title("❓ Como funciona o Multiplayer?")
-        win.geometry("560x520")
+        win.title("❓ Como funciona a Sala Online?")
+        win.geometry("580x560")
         win.resizable(False, False)
         win.grab_set()
 
         frame = ttk.Frame(win, padding=20)
         frame.pack(fill="both", expand=True)
 
-        ttk.Label(frame, text="🌐 Multiplayer — Tutorial", style="Title.TLabel").pack(anchor="w", pady=(0, 12))
+        ttk.Label(frame, text="🌐 Sala Online — Tutorial", style="Title.TLabel").pack(anchor="w", pady=(0, 12))
 
         text = tk.Text(
-            frame, wrap="word", height=22,
+            frame, wrap="word", height=24,
             font=("Segoe UI", 10), relief="flat",
             padx=10, pady=8,
             bg=COLORS["surface"], fg=COLORS["text"],
@@ -125,29 +81,34 @@ class NetworkPanel(ttk.Frame):
         text.pack(fill="both", expand=True)
 
         sections = [
-            ("🎲  PARA O MESTRE (Host)\n", "heading"),
-            ("1. Vá na aba Online / Multiplayer.\n", "normal"),
-            ("2. Clique em Hospedar. O app gera um Código de Sessão e um PIN de 6 dígitos.\n", "normal"),
-            ("3. Compartilhe com seus jogadores:\n", "normal"),
-            ("   • Seu IP local (ex: 192.168.1.50) — veja em Configurações de Rede do Windows.\n", "normal"),
-            ("   • O Código de Sessão (botão Copiar Código).\n", "normal"),
-            ("   • O PIN.\n\n", "normal"),
+            ("🎲  PARA O MESTRE\n", "heading"),
+            ("1. Clique em Criar sala. Se o Windows perguntar sobre o firewall, permita "
+             "(marque redes privadas e públicas).\n", "normal"),
+            ("2. Copie um dos links e mande para os jogadores (ex.: no chat do Discord).\n", "normal"),
+            ("3. Use o app normalmente: o que tocar e o que mostrar chega para eles.\n\n", "normal"),
 
             ("👤  PARA O JOGADOR\n", "heading"),
-            ("1. Vá na aba Online / Multiplayer.\n", "normal"),
-            ("2. Preencha: IP do Mestre, Código, PIN e seu Nome.\n", "normal"),
-            ("3. Clique em Entrar — a janela do jogador abre automaticamente.\n\n", "normal"),
+            ("Abra o link no navegador (Chrome, Edge ou Firefox), digite o nome e clique em "
+             "Entrar. Não precisa instalar nada.\n\n", "normal"),
 
-            ("🎵  MÚSICAS E ÁUDIO\n", "heading"),
-            ("As músicas do Mestre são enviadas automaticamente para os jogadores durante a sessão. "
-             "Quando o Mestre tocar uma faixa, ela será baixada em segundo plano no PC do jogador "
-             "(pasta ~/.dm_dungeon_music/player_cache). O jogador não precisa ter os arquivos antes.\n\n", "normal"),
+            ("🖼️  LOUSA\n", "heading"),
+            ("Os jogadores veem exatamente o que a câmera da aba Apresentação mostra: "
+             "imagens visíveis, posição, zoom e movimento.\n\n", "normal"),
+
+            ("🗺️  MAPA\n", "heading"),
+            ("No Editor de Mapas, clique em 📡 Mostrar aos jogadores. Eles navegam livremente "
+             "pelo mapa enviado. Itens marcados como 'Oculto para jogadores' e áreas cobertas "
+             "pela névoa não aparecem. Revele pontos aos poucos e envie de novo.\n\n", "normal"),
+
+            ("🎵  MÚSICA E EFEITOS\n", "heading"),
+            ("O que você tocar toca para todos, com o volume de cada faixa definido por você. "
+             "Cada jogador ajusta só o próprio volume de música e de efeitos. "
+             "Eles não veem suas listas de músicas, só ouvem o que está tocando.\n\n", "normal"),
 
             ("🌍  LAN vs INTERNET\n", "heading"),
-            ("Por padrão, funciona apenas na mesma rede (Wi-Fi ou cabo). "
-             "Para jogar pela internet, use uma VPN virtual gratuita como "
-             "Radmin VPN ou ZeroTier — elas criam uma rede local virtual, "
-             "como se todos estivessem no mesmo Wi-Fi.\n", "normal"),
+            ("Na mesma rede (Wi-Fi/cabo) funciona direto. Pela internet, todos instalam uma VPN "
+             "gratuita como Radmin VPN, Hamachi ou ZeroTier e entram na mesma rede — "
+             "use o link com o IP dessa VPN.\n", "normal"),
         ]
 
         text.tag_configure("heading", font=("Segoe UI", 11, "bold"), foreground=COLORS["primary_light"], spacing1=8, spacing3=2)
@@ -160,75 +121,52 @@ class NetworkPanel(ttk.Frame):
 
         ttk.Button(frame, text="Entendido ✓", command=win.destroy, style="Accent.TButton").pack(pady=(12, 0))
 
-    def _labeled_entry(self, parent, label: str, default: str) -> ttk.Entry:
-        frame = ttk.Frame(parent)
-        frame.pack(fill="x", pady=2)
-        ttk.Label(frame, text=label, width=12).pack(side="left")
-        entry = ttk.Entry(frame)
-        entry.pack(side="left", fill="x", expand=True)
-        entry.insert(0, default)
-        return entry
-
     # ── Event handlers ──────────────────────────────────────────────────────
-    def _on_host(self):
+    def _on_open_room(self):
         try:
-            host = self.host_entry.get().strip() or "0.0.0.0"
-            port = int(self.port_entry.get() or 8765)
-        except ValueError:
-            self._append_log("Porta inválida")
+            port = int(self.port_entry.get())
+            self.room.open(port)
+        except (ValueError, OSError) as exc:
+            self.status.config(text=t("network.room.open_error", error=exc))
             return
-        self.network.host(host=host, port=port)
-        # Exibe painel de sessão depois que o servidor inicializar (~200ms)
-        self.after(300, self._update_session_display)
+        self._open_btn.config(state="disabled")
+        self._close_btn.config(state="normal")
+        self.port_entry.config(state="disabled")
+        self.status.config(text=t("network.room.links"))
+        for ip in local_ips() or ["127.0.0.1"]:
+            self._add_link_row(_ip_label(ip), f"http://{ip}:{port}/?k={self.room.key}")
+        if self._on_open:
+            self._on_open()
 
-    def _on_join(self):
-        try:
-            host = self.join_host_entry.get().strip() or "127.0.0.1"
-            port = int(self.join_port_entry.get() or 8765)
-        except ValueError:
-            self._append_log("Porta inválida")
-            return
-        session_id = self.session_entry.get().strip()
-        pin = self.pin_entry.get().strip()
-        player_id = self.player_entry.get().strip() or "player"
-        if not session_id or not pin:
-            self._append_log(t("network.error.missing_fields"))
-            return
-        self.network.join(host=host, port=port, session_id=session_id, pin=pin, player_id=player_id)
+    def _on_close_room(self):
+        self.room.close()
+        self._open_btn.config(state="normal")
+        self._close_btn.config(state="disabled")
+        self.port_entry.config(state="normal")
+        self.status.config(text=t("network.status.offline"))
+        for child in self._links_frame.winfo_children():
+            child.destroy()
 
-    def _on_stop(self):
-        self.network.stop()
-        self.host_status.config(text=t("network.status.offline"))
-        self._session_info_frame.grid_remove()
+    def _add_link_row(self, label: str, url: str):
+        row = ttk.Frame(self._links_frame)
+        row.pack(fill="x", pady=2)
+        ttk.Label(row, text=label, width=14, foreground=COLORS["text_muted"]).pack(side="left")
+        entry = ttk.Entry(row, font=("Consolas", 11))
+        entry.insert(0, url)
+        entry.config(state="readonly")
+        entry.pack(side="left", fill="x", expand=True, padx=(0, 6))
+        ttk.Button(row, text=t("network.room.copy"),
+                   command=lambda: self._copy(url)).pack(side="left")
 
-    def _update_session_display(self):
-        if self.network.is_hosting and self.network.session_id:
-            self._session_code_label.config(text=self.network.session_id)
-            self._pin_label.config(text=self.network.pin or "—")
-            self._session_info_frame.grid()
-
-    def _copy_code(self):
-        code = self.network.session_id or ""
-        pin = self.network.pin or ""
+    def _copy(self, url: str):
         self.clipboard_clear()
-        self.clipboard_append(f"{code} PIN:{pin}")
+        self.clipboard_append(url)
 
-    def _poll_player_count(self):
-        if self.network.is_hosting:
-            count = self.network.get_connected_count()
-            self._player_count_label.config(text=f"Jogadores: {count}")
-        self.after(1000, self._poll_player_count)
-
-    def _on_status(self, message: str):
-        self.after(0, lambda: self._append_log(message))
-        self.after(0, lambda: self.host_status.config(text=message))
-
-    def _on_message(self, payload: dict):
-        text = f"← {payload.get('type', '?')}"
-        self.after(0, lambda: self._append_log(text))
-
-    def _append_log(self, text: str):
-        self.log_box.config(state="normal")
-        self.log_box.insert("end", text + "\n")
-        self.log_box.see("end")
-        self.log_box.config(state="disabled")
+    def _poll_players(self):
+        if self.room.is_open:
+            names = self.room.players()
+            self._players_label.config(
+                text=t("network.room.players", count=len(names), names=", ".join(names)))
+        else:
+            self._players_label.config(text="")
+        self.after(1000, self._poll_players)

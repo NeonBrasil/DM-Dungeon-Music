@@ -11,6 +11,9 @@ import math
 DATA_DIR  = os.path.join(os.path.expanduser("~"), ".dm_dungeon_music", "maps")
 ICONS_DIR = os.path.join(os.path.expanduser("~"), ".dm_dungeon_music", "map_icons")
 
+# Mapa renderizado para os jogadores (lido pela sala online do app principal)
+PLAYER_MAP_PATH = os.path.join(os.path.expanduser("~"), ".dm_dungeon_music", "player_map.png")
+
 os.makedirs(DATA_DIR,  exist_ok=True)
 os.makedirs(ICONS_DIR, exist_ok=True)
 
