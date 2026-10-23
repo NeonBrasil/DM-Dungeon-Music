@@ -82,6 +82,16 @@ test("jogador move só o próprio token e só x/y", () => {
   assert.equal(camp.colls.graphics.g3.x, 140);
 });
 
+test("jogador troca a imagem só do próprio token", () => {
+  const { gm, ana, bia, camp } = setup();
+  gm.msg({ t: "create", coll: "graphics", data: token("g4", { src: "/files/c1/a.png" }) });
+  ana.msg({ t: "update", coll: "graphics", id: "g4", patch: { src: "/files/c1/b.png" } });
+  assert.equal(camp.colls.graphics.g4.src, "/files/c1/b.png");
+  bia.msg({ t: "update", coll: "graphics", id: "g4", patch: { src: "/files/c1/c.png" } });
+  assert.equal(camp.colls.graphics.g4.src, "/files/c1/b.png");
+  assert.equal(bia.last().t, "error");
+});
+
 test("jogador não cria nada além de personagens; personagem fica dele", () => {
   const { ana, camp } = setup();
   ana.msg({ t: "create", coll: "pages", data: { id: "px" } });

@@ -2,6 +2,7 @@
 // régua, névoa, desenho, moldes de área, paredes/portas, iluminação dinâmica, clima, cartas e links.
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { DoorSeg, Graphic, Page } from "../../shared/types.ts";
+import type { CompSystem } from "../../shared/compendium.ts";
 import { DRAWING_KINDS } from "../../shared/types.ts";
 import { clamp, fogDecode, fogEncode, newId } from "../../shared/util.ts";
 import { blockingSegments, crossesWall, segDist } from "../../shared/vision.ts";
@@ -17,6 +18,7 @@ import { Weather } from "./board/weather.ts";
 import { act, group, redo, undo } from "./history.ts";
 import { boardCenter, canControl, linkedPage, measure, myColor, openSheet, ui, useViewPage } from "./ui.ts";
 import { ToolOptions } from "./ToolOptions.tsx";
+import { PlaceModal } from "./PlaceModal.tsx";
 import { loadMonsters } from "../compendium/srd.ts";
 import { ensureMonsterSheet } from "../compendium/Compendium.tsx";
 
@@ -108,6 +110,7 @@ export function Board() {
   const [dropping, setDropping] = useState(false);
   const [textInput, setTextInput] = useState<{ sx: number; sy: number; wx: number; wy: number } | null>(null);
   const [noVision, setNoVision] = useState(false);
+  const [placeAt, setPlaceAt] = useState<{ x: number; y: number } | null>(null);
 
   const pageGraphics = useMemo(
     () => (page ? sortGraphics(Object.values(graphics).filter((g) => g.pageId === page.id)) : []),
@@ -949,7 +952,9 @@ export function Board() {
     if (!g) return;
     if (g.link && L.gm) {
       const target = linkedPage(g.link);
-      ui.set(target ? { viewPageId: target.id } : { generator: g.link.kind, genPreset: g.link });
+      if (target) ui.set({ viewPageId: target.id });
+      else if (g.link.pageId) toast("A página deste local foi apagada.");
+      else ui.set({ generator: g.link.kind, genPreset: g.link });
       return;
     }
     if (g.kind === "card" && canControl(g.controlledBy)) {
@@ -964,7 +969,11 @@ export function Board() {
   function openMenu(cx: number, cy: number, wx: number, wy: number) {
     const L = latest.current;
     const g = hitTest(wx, wy);
-    if (!g) return;
+    const place: MenuItem = { label: "Adicionar local aqui", icon: "map", onClick: () => setPlaceAt({ x: wx, y: wy }) };
+    if (!g) {
+      if (L.gm && L.page) setMenu({ x: cx, y: cy, items: [place] });
+      return;
+    }
     ui.set({ selected: [g.id] });
     const items: MenuItem[] = [];
     if (g.characterId && game.get().colls.characters[g.characterId]) {
@@ -981,7 +990,7 @@ export function Board() {
       const link = g.link;
       const target = linkedPage(link);
       if (target) items.push({ label: `Ir para ${target.name}`, icon: "map", onClick: () => ui.set({ viewPageId: target.id }) });
-      items.push({ label: `Abrir ${link.label} no gerador`, icon: "wand", onClick: () => ui.set({ generator: link.kind, genPreset: link }) });
+      if (!link.pageId) items.push({ label: `Abrir ${link.label} no gerador`, icon: "wand", onClick: () => ui.set({ generator: link.kind, genPreset: link }) });
     }
     if (g.kind === "token" && L.gm) items.push({ label: "Adicionar à iniciativa", icon: "swords", onClick: () => addToTurns(g) });
     if (!L.gm) {
@@ -1005,6 +1014,8 @@ export function Board() {
       { label: g.locked ? "Destravar" : "Travar", icon: "lock", onClick: () => act.update("graphics", g.id, { locked: !g.locked }) },
       { label: "Duplicar", icon: "copy", onClick: () => act.create("graphics", { ...structuredClone(g), id: newId(), x: g.x + L.page!.gridSize, z: Math.max(...zs) + 1 }) },
       { label: "Excluir", icon: "trash", danger: true, onClick: () => act.remove("graphics", g.id) },
+      "sep",
+      place,
     );
     setMenu({ x: cx, y: cy, items });
   }
@@ -1133,11 +1144,12 @@ export function Board() {
       return;
     }
     if (!L.gm) return;
-    const monId = e.dataTransfer.getData("application/x-dm-monster");
-    if (monId && L.page) {
-      const m = (await loadMonsters()).find((x) => x.id === monId);
+    const monKey = e.dataTransfer.getData("application/x-dm-monster"); // "<sistema>:<id>"
+    if (monKey && L.page) {
+      const [sys, monId] = monKey.split(":") as [CompSystem, string];
+      const m = (await loadMonsters(sys)).find((x) => x.id === monId);
       if (!m) return;
-      const cid = ensureMonsterSheet(m);
+      const cid = ensureMonsterSheet(m, sys);
       const gs = L.page.gridSize;
       const size = m.token * gs;
       const lay = ui.get().layer === "map" ? "tokens" : ui.get().layer;
@@ -1260,6 +1272,7 @@ export function Board() {
       {hint && <div className="board-hint">{hint}</div>}
       {dropping && <div className="center" style={{ position: "absolute", inset: 0, background: "rgba(212,167,58,0.08)", border: "2px dashed var(--accent)", pointerEvents: "none" }}>Soltar na camada {layer === "map" ? "Mapa" : layer === "gm" ? "Mestre" : "Tokens"}</div>}
       {menu && <ContextMenu {...menu} onClose={() => setMenu(null)} />}
+      {placeAt && <PlaceModal x={placeAt.x} y={placeAt.y} onClose={() => setPlaceAt(null)} />}
     </div>
   );
 }

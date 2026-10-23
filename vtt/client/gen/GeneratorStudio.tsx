@@ -7,7 +7,7 @@ import { randomSeed } from "./rng.ts";
 import type { Built, GenKind } from "./types.ts";
 import { KINDS, type KindDef } from "./kinds.ts";
 
-export interface SendOptions { fog: boolean; light: boolean; source: WorldLink }
+export interface SendOptions { fog: boolean; light: boolean; marks: boolean; source: WorldLink }
 
 type AllParams = Record<string, Record<string, unknown>>;
 /** Parâmetros que dão nome ao lugar: vêm do mapa de cima e não ficam salvos. */
@@ -45,6 +45,7 @@ export function GeneratorStudio({ onClose, onSend, initial, preset, from }: {
   const [gmPreview, setGmPreview] = useState(true);
   const [fog, setFog] = useState(true);
   const [light, setLight] = useState(false);
+  const [marks, setMarks] = useState(true);
   const [busy, setBusy] = useState("");
   const [error, setError] = useState("");
 
@@ -104,7 +105,7 @@ export function GeneratorStudio({ onClose, onSend, initial, preset, from }: {
     if (!built || !onSend) return;
     setBusy("Enviando para a mesa…");
     try {
-      await onSend(built, { fog, light, source: here() });
+      await onSend(built, { fog, light, marks, source: here() });
     } catch (e) {
       setError(String((e as Error).message ?? e));
     } finally {
@@ -188,6 +189,11 @@ export function GeneratorStudio({ onClose, onSend, initial, preset, from }: {
               {kind.battlemap && (
                 <label className="check small" title="Paredes e portas já vêm prontas; jogadores veem só o que os tokens deles enxergam">
                   <input type="checkbox" checked={light} onChange={(e) => setLight(e.target.checked)} /> Iluminação dinâmica (paredes e portas)
+                </label>
+              )}
+              {!!built?.links?.length && (
+                <label className="check small" title="Desmarque para colocar os locais à mão (botão direito no mapa → Adicionar local)">
+                  <input type="checkbox" checked={marks} onChange={(e) => setMarks(e.target.checked)} /> Criar locais automáticos (marcadores dourados)
                 </label>
               )}
               <button className="btn primary" onClick={send} disabled={!built || !!busy}><Icon name="send" size={16} /> Enviar para a mesa</button>

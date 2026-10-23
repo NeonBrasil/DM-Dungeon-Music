@@ -42,6 +42,9 @@ export function PagePanel() {
           <EditField type="number" value={page.rows} onCommit={(v) => up({ rows: Math.round(num(v, 1, 300, page.rows)), fog: "" })} />
         </label>
       </div>
+      <span className="small muted">
+        Tamanho: {(page.cols * page.scale).toLocaleString("pt-BR")} × {(page.rows * page.scale).toLocaleString("pt-BR")} {page.unit} (máx. 300 × 300 células)
+      </span>
       <div className="row">
         <label className="field grow"><span>Tamanho da célula (px)</span>
           <EditField type="number" value={page.gridSize} onCommit={(v) => up({ gridSize: Math.round(num(v, 10, 400, page.gridSize)) })} />

@@ -1,9 +1,9 @@
 // Propriedades do que está selecionado: tokens (vida, condições, aura, visão, luz),
 // desenhos, moldes, cartas e imagens.
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import type { Graphic, Layer } from "../../shared/types.ts";
 import { DRAWING_KINDS } from "../../shared/types.ts";
-import { game, send, useColl } from "../game.ts";
+import { game, send, uploadFile, useColl } from "../game.ts";
 import { EditField } from "../ui/EditField.tsx";
 import { Icon } from "../ui/Icon.tsx";
 import { CONDITIONS } from "./conditions.ts";
@@ -26,6 +26,24 @@ function Conditions({ g, up }: { g: Graphic; up: (p: Record<string, unknown>) =>
       </div>
       {markers.length > 0 && <span className="small muted">{markers.map((m) => CONDITIONS.find((c) => c.id === m)?.label ?? m).join(", ")}</span>}
     </div>
+  );
+}
+
+/** Botão de trocar a imagem do token (jogador: só nos tokens dele). */
+function TokenImage({ up }: { up: (p: Record<string, unknown>) => void }) {
+  const ref = useRef<HTMLInputElement>(null);
+  return (
+    <>
+      <button className="btn small" onClick={() => ref.current?.click()}><Icon name="image" size={14} /> Trocar imagem</button>
+      <input
+        ref={ref} type="file" accept="image/*" hidden
+        onChange={async (e) => {
+          const f = e.target.files?.[0];
+          e.target.value = "";
+          if (f) up({ src: await uploadFile(f, f.name) });
+        }}
+      />
+    </>
   );
 }
 
@@ -136,7 +154,7 @@ export function Inspector() {
     return (
       <div className="inspector" onPointerDown={(e) => e.stopPropagation()}>
         <div className="row"><h4 className="grow">{what}</h4>{del}{close}</div>
-        {g.kind === "text" && <label className="field"><span>Texto</span><EditField value={g.text} onCommit={(v) => up({ text: v })} /></label>}
+        {g.kind === "text" && <label className="field"><span>Texto</span><EditField value={g.text} onCommit={(v) => up({ text: v, ...(g.link ? { "link.label": v } : {}) })} /></label>}
         <div className="row">
           <span className="small muted">Cor</span>
           <input
@@ -182,6 +200,7 @@ export function Inspector() {
             </div>
           </label>
         )}
+        {g.kind === "token" && <TokenImage up={up} />}
         <Conditions g={g} up={up} />
         <AuraAndLight g={g} up={up} gm={false} unit={page.unit} />
       </div>
@@ -229,8 +248,11 @@ export function Inspector() {
         </select>
       </label>
 
-      {g.kind === "token" && !g.src && (
-        <label className="row small muted">Cor <input type="color" value={g.color ?? "#c0392b"} onChange={(e) => up({ color: e.target.value })} /></label>
+      {g.kind === "token" && (
+        <div className="row">
+          <TokenImage up={up} />
+          {!g.src && <label className="row small muted">Cor <input type="color" value={g.color ?? "#c0392b"} onChange={(e) => up({ color: e.target.value })} /></label>}
+        </div>
       )}
 
       {g.kind === "token" && (

@@ -34,7 +34,7 @@ O jogador abre o link, digita o nome e escolhe uma cor. Se alguém entrar com um
 | Macros | Barra de macros (do mestre e de cada jogador), perguntas `?{Bônus\|0\|2\|5}`, valores de ficha `@{Thorin\|athletics}` e `&{tracker}` para mandar o resultado para a iniciativa |
 | Fichas | Ficha livre, **D&D 5e** (personagem e monstro), **SW5e**, **Call of Cthulhu 7e** (com dados de bônus/penalidade), **Ordem Paranormal** e **Tormenta20**, e modelos próprios no editor. Clique para rolar, vantagem/desvantagem e rolagem secreta. Exporta e importa ficha ou modelo (`.json`) |
 | Textos | Notas e imagens para todos, só para alguns jogadores ou só para o mestre |
-| Compêndio | 334 monstros e 319 magias do SRD de D&D 5e. Arraste um monstro para a mesa e ele vira token com ficha. Magias rolam o dano e entram na ficha |
+| Compêndio | **Bestiário e itens só do mestre** (o servidor recusa jogadores), em pastas **D&D 5e** (334 monstros e 578 itens do SRD) e **Star Wars** (61 criaturas da Era da República: droides, clones, Jedi, Nightsisters, Sith, mercenários, mandalorianos e feras; e 76 itens: blasters, sabres, armaduras, explosivos). Arraste um monstro para a mesa e ele vira token com ficha. Item vira ataque ou entra no equipamento da ficha. 319 magias do SRD para todos, que rolam o dano e entram na ficha |
 | Cartas | Baralho comum (54), tarô (22) ou personalizado (cartas de texto ou imagens, verso próprio). Comprar, dar para um jogador, jogar na mesa aberta ou virada, mostrar no chat, descartar e recolher. O monte e a mão dos outros ficam escondidos |
 | Clima e cena | Chuva, tempestade, neve, névoa, brasas, cinzas, folhas e areia por página. Cada página pode ter a sua trilha, que toca quando você leva os jogadores para lá |
 | Geradores | **Masmorra** (One Page Dungeon), **Caverna**, **Cidade/Vila** (Medieval Fantasy City) e **Região** (Perilous Shores). Semente, estilos, exportar PNG ou **Enviar para a mesa**. **Mundo interligado**: povoados, ruínas e cavernas da região, e castelo, catedral e esgotos da cidade abrem o gerador naquele lugar |
@@ -54,6 +54,8 @@ Arraste uma ficha do diário para o tabuleiro para criar o token dela. A barra d
 
 Gere uma **região** e mande para a mesa. Cada povoado, ruína e caverna ganha um marcador dourado na camada do mestre. Dê dois cliques no marcador para abrir o gerador naquele lugar, com o mesmo nome. Na cidade, o castelo, a catedral e o mercado (esgotos) abrem a masmorra de cada um. O caminho (região › cidade › masmorra) aparece no topo do gerador para voltar. Depois que o lugar vai para a mesa, o marcador passa a levar direto à página dele.
 
+Para pôr os locais à mão, desmarque *Criar locais automáticos* ao enviar e clique com o botão direito no mapa → **Adicionar local aqui**. Dê um nome e escolha para onde ele leva: um lugar novo (cidade, masmorra, caverna ou região, gerado com esse nome) ou uma página que já existe. Funciona em qualquer página, até num mapa seu.
+
 ### Iluminação
 
 Masmorras e cavernas geradas trazem paredes e portas: marque *Iluminação dinâmica* antes de enviar, ou ligue depois na ferramenta **Paredes** (`W`), onde também dá para desenhar paredes e portas à mão. Arrastar a ficha de um jogador para a mesa já cria o token com visão. Dê luz ao token no painel dele, ou use *Tocha para os jogadores*.
@@ -70,7 +72,7 @@ No saguão, **Backup (.zip)** baixa a campanha inteira (fichas, mapas, imagens e
 
 ## Créditos
 
-Monstros e magias do compêndio: *System Reference Document 5.1*, da Wizards of the Coast, sob a licença [CC-BY-4.0](https://creativecommons.org/licenses/by/4.0/), via [5e-bits/5e-database](https://github.com/5e-bits/5e-database). Os textos estão em inglês. Os geradores foram inspirados nos de [watabou](https://watabou.github.io), mas o código é próprio.
+Monstros, itens e magias de D&D do compêndio: *System Reference Document 5.1*, da Wizards of the Coast, sob a licença [CC-BY-4.0](https://creativecommons.org/licenses/by/4.0/), via [5e-bits/5e-database](https://github.com/5e-bits/5e-database). Os textos estão em inglês. As criaturas e os itens de Star Wars foram escritos para esta mesa no estilo do SW5e (não oficial, números aproximados). Star Wars é da Lucasfilm. Os geradores foram inspirados nos de [watabou](https://watabou.github.io), mas o código é próprio.
 
 ## Desenvolvimento
 
@@ -80,7 +82,7 @@ npm test           # testes (dados, permissões, fichas, visão, backup)
 npm run typecheck
 npm run build      # gera dist/
 npm start          # servidor na porta 7777 (PORT=... para trocar)
-node scripts/build-srd.ts   # refaz client/data/srd-*.json a partir do SRD (já vêm prontos; precisa de internet)
+node scripts/build-srd.ts   # refaz as magias (client/data) e o bestiário/itens D&D (server/compendium) a partir do SRD (já vêm prontos; precisa de internet)
 ```
 
 O servidor é Node + TypeScript direto (sem compilar), em `server/`. A interface é React + Canvas em `client/`, e o código compartilhado (tipos, dados, protocolo) fica em `shared/`.

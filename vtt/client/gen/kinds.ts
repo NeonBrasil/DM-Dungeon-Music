@@ -89,6 +89,6 @@ export const KINDS: KindDef[] = [
       { key: "hex", label: "Grade hexagonal", type: "check" },
     ],
     defaults: { shape: "coast", size: "medium", style: "parchment", hex: false },
-    build: (p) => buildRegion({ seed: p.seed, shape: p.shape as RegionShape, size: p.size as "small" | "medium" | "large", style: p.style as RegionStyle, hex: !!p.hex }),
+    build: (p) => buildRegion({ seed: p.seed, shape: p.shape as RegionShape, size: p.size as "small" | "medium" | "large", style: p.style as RegionStyle, hex: !!p.hex, name: p.name as string | undefined }),
   },
 ];

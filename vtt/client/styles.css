@@ -192,6 +192,7 @@ label.check { display: flex; align-items: center; gap: 6px; cursor: pointer; }
 .sidebar.collapsed .side-tabs { flex-direction: column; border-bottom: 0; }
 .side-body { flex: 1; min-height: 0; display: flex; flex-direction: column; }
 .side-scroll { flex: 1; overflow-y: auto; padding: 12px; display: flex; flex-direction: column; gap: 10px; }
+.side-scroll > * { flex-shrink: 0; } /* lista longa não esmaga as abas (.seg tem overflow: hidden) */
 .side-head { display: flex; align-items: center; gap: 8px; padding: 10px 12px; border-bottom: 1px solid var(--line); }
 .side-head h3 { font-size: 15px; flex: 1; }
 

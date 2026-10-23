@@ -10,6 +10,7 @@ import { dicePrefs, rolling, setDice3d } from "../dice3d/watch.ts";
 import { cardUrl } from "../table/board/cards.ts";
 
 const DICE = [4, 6, 8, 10, 12, 20, 100];
+const fmtMod = (n: number) => (n > 0 ? `+${n}` : n < 0 ? String(n) : "");
 
 export function initialsOf(name: string): string {
   const p = name.trim().split(/\s+/);
@@ -201,6 +202,7 @@ export function Chat() {
   const speakAs = ui.use((s) => s.speakAs);
   const [text, setText] = useState("");
   const [secret, setSecret] = useState(false);
+  const [mod, setMod] = useState(0); // somado aos dados rápidos; fica até zerar
   const dice3d = dicePrefs.use((s) => s.on);
   const logRef = useRef<HTMLDivElement>(null);
   const stick = useRef(true);
@@ -244,10 +246,18 @@ export function Chat() {
       <div className="chat-input">
         <div className="dice-tray">
           {DICE.map((d) => (
-            <button key={d} className="btn" title={`Rolar 1d${d}`} onClick={() => api.roll(`1d${d}`, { gm: secret, as })}>
+            <button key={d} className="btn" title={`Rolar 1d${d}${fmtMod(mod)}`} onClick={() => api.roll(`1d${d}${fmtMod(mod)}`, { gm: secret, as })}>
               d{d}
             </button>
           ))}
+        </div>
+        <div className="dice-tray">
+          <span className="small muted" style={{ alignSelf: "center" }}>Mod.</span>
+          {[-2, -1].map((n) => <button key={n} className="btn" onClick={() => setMod(mod + n)}>{n}</button>)}
+          <button className={`btn ${mod ? "active" : ""}`} style={{ minWidth: 38 }} title="Somado aos dados acima · clique para zerar" onClick={() => setMod(0)}>
+            {fmtMod(mod) || "±0"}
+          </button>
+          {[1, 2].map((n) => <button key={n} className="btn" onClick={() => setMod(mod + n)}>+{n}</button>)}
           <label className="check small muted" title="Só você e o mestre veem">
             <input type="checkbox" checked={secret} onChange={(e) => setSecret(e.target.checked)} /> secreto
           </label>

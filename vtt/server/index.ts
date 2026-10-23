@@ -17,6 +17,7 @@ import {
 import { importBackup, listSnapshots, planBackup, readSnapshot, snapshot, zipStream } from "./backup.ts";
 import { tunnel } from "./tunnel.ts";
 import { importLegacy, listLegacy } from "./legacy.ts";
+import { compendium } from "./compendium/index.ts";
 import { ID_RE, newId } from "../shared/util.ts";
 
 const DIST = path.resolve(import.meta.dirname, "..", "dist");
@@ -400,6 +401,14 @@ async function route(req: http.IncomingMessage, res: http.ServerResponse) {
     const body = await readJson(req);
     const paths = Array.isArray(body.paths) ? body.paths.filter((x: unknown) => typeof x === "string") : [];
     return json(res, 200, await importLegacy(paths, filesDir(l.camp.id), `/files/${l.camp.id}`));
+  }
+  // Bestiário e itens: jogadores não leem nem pelo endereço direto.
+  if ((m = /^\/api\/compendium\/([a-z-]+)$/.exec(p))) {
+    if (!isGm(req)) return json(res, 403, { error: "só o mestre" });
+    const body = compendium(m[1]);
+    if (!body) return json(res, 404, { error: "não encontrado" });
+    res.writeHead(200, { "content-type": "application/json", "cache-control": "no-store" });
+    return res.end(body);
   }
   if (p === "/api/net") {
     if (!isGm(req)) return json(res, 403, { error: "só o mestre" });

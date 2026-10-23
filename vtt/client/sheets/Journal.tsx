@@ -2,7 +2,7 @@
 import { useMemo, useRef, useState } from "react";
 import type { Character } from "../../shared/types.ts";
 import { newId } from "../../shared/util.ts";
-import { api, game, useColl } from "../game.ts";
+import { api, game, uploadFile, useColl } from "../game.ts";
 import { initialsOf } from "../chat/Chat.tsx";
 import { openHandout, openSheet, ui } from "../table/ui.ts";
 import { Icon } from "../ui/Icon.tsx";
@@ -114,6 +114,9 @@ function NewCharacter({ onClose }: { onClose: () => void }) {
   const playerId = game.use((s) => s.playerId);
   const [name, setName] = useState("");
   const [tpl, setTpl] = useState(() => localStorage.getItem("dm.lastTemplate") ?? "free");
+  const [avatar, setAvatar] = useState<string | undefined>();
+  const [uploading, setUploading] = useState(false);
+  const fileRef = useRef<HTMLInputElement>(null);
   const all = [...BUILTIN, ...Object.values(templates)];
   const create = () => {
     const t = findTemplate(tpl, templates);
@@ -121,16 +124,41 @@ function NewCharacter({ onClose }: { onClose: () => void }) {
     localStorage.setItem("dm.lastTemplate", t.id);
     api.create("characters", {
       id, name: name.trim() || "Novo personagem", template: t.id, data: defaultData(t),
-      controlledBy: role === "gm" ? [] : [playerId!], shared: false,
+      controlledBy: role === "gm" ? [] : [playerId!], shared: false, ...(avatar ? { avatar } : {}),
     });
     openSheet(id);
     onClose();
   };
   return (
     <Modal title="Nova ficha" onClose={onClose}>
-      <label className="field"><span>Nome</span>
-        <input className="input" autoFocus value={name} onChange={(e) => setName(e.target.value)} onKeyDown={(e) => e.key === "Enter" && create()} />
-      </label>
+      <div className="row">
+        <button
+          className="sheet-avatar" title="Imagem do personagem (vira a do token)"
+          style={avatar ? { backgroundImage: `url("${avatar}")` } : undefined}
+          onClick={() => fileRef.current?.click()}
+        >
+          {!avatar && <Icon name={uploading ? "refresh" : "image"} size={22} />}
+        </button>
+        <input
+          ref={fileRef} type="file" accept="image/*" hidden
+          onChange={async (e) => {
+            const f = e.target.files?.[0];
+            e.target.value = "";
+            if (!f) return;
+            setUploading(true);
+            try {
+              setAvatar(await uploadFile(f, f.name));
+            } catch (err) {
+              toast((err as Error).message);
+            } finally {
+              setUploading(false);
+            }
+          }}
+        />
+        <label className="field grow"><span>Nome</span>
+          <input className="input" autoFocus value={name} onChange={(e) => setName(e.target.value)} onKeyDown={(e) => e.key === "Enter" && create()} />
+        </label>
+      </div>
       <label className="field"><span>Sistema / modelo</span>
         <select className="input" value={tpl} onChange={(e) => setTpl(e.target.value)}>
           {all.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
@@ -138,7 +166,7 @@ function NewCharacter({ onClose }: { onClose: () => void }) {
       </label>
       <div className="row">
         <span className="grow small muted">{role === "gm" ? "Fichas do mestre começam ocultas; marque os donos depois." : "A ficha será sua."}</span>
-        <button className="btn primary" onClick={create}>Criar</button>
+        <button className="btn primary" disabled={uploading} onClick={create}>Criar</button>
       </div>
     </Modal>
   );

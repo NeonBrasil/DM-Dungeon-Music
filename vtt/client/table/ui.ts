@@ -81,9 +81,11 @@ export function measure(pts: number[], page: Page, diagonal: "dnd" | "alt" | "eu
   return `${v} ${page.unit}`;
 }
 
-/** Página já criada para um lugar do mundo (mesmo gerador e semente). */
+/** Página já criada para um lugar do mundo (mesmo gerador e semente), ou a página escolhida à mão. */
 export function linkedPage(link: WorldLink): Page | undefined {
-  return Object.values(game.get().colls.pages).find((p) => p.source?.kind === link.kind && p.source.seed === link.seed);
+  const pages = game.get().colls.pages;
+  if (link.pageId) return pages[link.pageId];
+  return Object.values(pages).find((p) => p.source?.kind === link.kind && p.source.seed === link.seed);
 }
 
 /** Cor do usuário (jogador) ou dourado (mestre). */

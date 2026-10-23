@@ -39,6 +39,8 @@ export function SheetWindow({ id }: { id: string }) {
   const onAvatar = async (file: File | undefined) => {
     if (!file) return;
     const url = await uploadFile(file, file.name);
+    // tokens da ficha que usavam a imagem antiga (ou nenhuma) passam a usar a nova
+    for (const g of tokens) if ((!g.src || g.src === ch.avatar) && canControl(g.controlledBy)) api.update("graphics", g.id, { src: url });
     api.update("characters", id, { avatar: url });
   };
 

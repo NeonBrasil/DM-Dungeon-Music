@@ -10,7 +10,7 @@ import type { Built } from "./types.ts";
 
 export type RegionShape = "coast" | "island" | "continent" | "archipelago";
 export type RegionStyle = "parchment" | "ink";
-export interface RegionOpts { seed: string; shape: RegionShape; size: "small" | "medium" | "large"; hex: boolean; style: RegionStyle }
+export interface RegionOpts { seed: string; shape: RegionShape; size: "small" | "medium" | "large"; hex: boolean; style: RegionStyle; name?: string }
 
 const UNITS_PER_CELL = 30; // 1 célula da mesa = 30 unidades do mapa
 const RES = 5;             // unidades por amostra do relevo
@@ -397,7 +397,8 @@ export function generateRegion(o: RegionOpts): Region {
   }
 
   // ─── Rótulos ─────────────────────────────────────────────────────────────
-  const name = regionName(rng.fork("region"));
+  const auto = regionName(rng.fork("region")); // sorteia sempre: o resto do mapa não muda com o nome
+  const name = o.name || auto;
   const labels: Label[] = [];
   // mar: ponto de água mais longe da terra
   let seaBest = -1;

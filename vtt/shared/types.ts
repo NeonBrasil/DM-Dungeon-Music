@@ -79,7 +79,13 @@ export interface Tpl { type: TemplateType; ox: number; oy: number; size: number;
 
 export type GraphicKind = "image" | "token" | "text" | "path" | "shape" | "template" | "card";
 
-export interface WorldLink { kind: "dungeon" | "cave" | "city" | "region"; seed: string; params: Record<string, unknown>; label: string }
+export interface WorldLink {
+  kind: "dungeon" | "cave" | "city" | "region";
+  seed: string;
+  params: Record<string, unknown>;
+  label: string;
+  pageId?: string;       // local feito à mão que leva a uma página que já existe
+}
 
 export interface Graphic {
   id: string;

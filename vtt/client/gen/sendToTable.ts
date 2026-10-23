@@ -52,7 +52,7 @@ export async function sendToTable(b: Built, o: SendOptions) {
   }
   // marcadores do mestre que abrem o lugar (ou levam à página dele, se já existir)
   const markH = Math.max(0.9, Math.max(b.cols, b.rows) / 70); // mapas grandes: letra maior (lê no zoom de página inteira)
-  for (const l of b.links ?? []) {
+  for (const l of o.marks ? b.links ?? [] : []) {
     const h = GS * markH;
     const w = Math.max(h, l.link.label.length * h * 0.62);
     api.create("graphics", {

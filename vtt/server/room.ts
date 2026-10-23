@@ -27,7 +27,7 @@ const CHAT_LIMIT = 500;
 const GM_COLOR = "#c9a227";
 
 // Campos que um jogador pode alterar em tokens que controla.
-const PLAYER_TOKEN_KEYS = ["x", "y", "bar.value", "markers", "aura", "light"];
+const PLAYER_TOKEN_KEYS = ["x", "y", "bar.value", "markers", "aura", "light", "src"];
 // …e em desenhos/moldes que criou.
 const PLAYER_DRAWING_KEYS = ["x", "y", "w", "h", "pts", "stroke", "fill", "strokeWidth", "shape", "text", "color", "tpl", "name"];
 // Coleções que dependem da página dos jogadores (settings.playerPageId).

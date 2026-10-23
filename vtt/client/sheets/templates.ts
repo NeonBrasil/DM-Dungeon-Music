@@ -476,7 +476,10 @@ export const DND5E_NPC: SheetTemplate = {
   ],
 };
 
-export const BUILTIN: SheetTemplate[] = [FREE, DND5E, DND5E_NPC, SW5E, COC7E, ORDEM, T20];
+/** Criatura do bestiário Star Wars: mesmos campos da criatura D&D. */
+export const SW5E_NPC: SheetTemplate = { ...DND5E_NPC, id: "sw5e-npc", name: "SW5e — Criatura" };
+
+export const BUILTIN: SheetTemplate[] = [FREE, DND5E, DND5E_NPC, SW5E, SW5E_NPC, COC7E, ORDEM, T20];
 
 export function findTemplate(id: string, custom: Record<string, SheetTemplate>): SheetTemplate {
   return BUILTIN.find((t) => t.id === id) ?? custom[id] ?? FREE;

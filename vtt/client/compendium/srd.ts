@@ -1,17 +1,11 @@
-// Compêndio D&D 5e (SRD 5.1, Wizards of the Coast, CC-BY-4.0): carregado sob demanda.
+// Compêndio: magias D&D 5e (SRD 5.1, CC-BY-4.0) para todos, carregadas sob demanda; bestiário e
+// itens de cada sistema só para o mestre (o servidor recusa jogadores em /api/compendium).
 import type { Character } from "../../shared/types.ts";
+import type { CompSystem, Item, Monster } from "../../shared/compendium.ts";
 import { newId } from "../../shared/util.ts";
+import { gmKey } from "../game.ts";
 
-export interface SrdMonster {
-  id: string; name: string; size: string; token: number; type: string; alignment: string;
-  ac: number; acNote?: string; hp: number; hd: string; speed: string; abil: number[];
-  saves: string; skills: string; senses: string; languages: string; cr: string; crNum: number; xp: number; pb: number;
-  vuln?: string; resist?: string; immune?: string; condImmune?: string;
-  traits: { name: string; desc: string }[];
-  actions: { name: string; desc: string; atk?: number; dmg?: string }[];
-  reactions: { name: string; desc: string }[];
-  legendary: { name: string; desc: string }[];
-}
+export type SrdMonster = Monster;
 
 export interface SrdSpell {
   id: string; name: string; level: number; school: string; time: string; range: string; components: string; material?: string;
@@ -19,13 +13,24 @@ export interface SrdSpell {
   desc: string; higher?: string;
 }
 
-let monsters: Promise<SrdMonster[]> | null = null;
 let spells: Promise<SrdSpell[]> | null = null;
+const gmCache = new Map<string, Promise<unknown>>();
 
-export function loadMonsters(): Promise<SrdMonster[]> {
-  monsters ??= import("../data/srd-monsters.json").then((m) => m.default as unknown as SrdMonster[]);
-  return monsters;
+function gmData<T>(name: string): Promise<T> {
+  let p = gmCache.get(name);
+  if (!p) {
+    p = fetch(`/api/compendium/${name}`, { headers: { "x-gm-key": gmKey() } }).then((r) => {
+      if (!r.ok) throw new Error("só o mestre");
+      return r.json();
+    });
+    p.catch(() => gmCache.delete(name));
+    gmCache.set(name, p);
+  }
+  return p as Promise<T>;
 }
+
+export const loadMonsters = (sys: CompSystem) => gmData<Monster[]>(`bestiary-${sys}`);
+export const loadItems = (sys: CompSystem) => gmData<Item[]>(`items-${sys}`);
 export function loadSpells(): Promise<SrdSpell[]> {
   spells ??= import("../data/srd-spells.json").then((m) => m.default as unknown as SrdSpell[]);
   return spells;
@@ -34,14 +39,14 @@ export function loadSpells(): Promise<SrdSpell[]> {
 export const mod = (v: number) => Math.floor((v - 10) / 2);
 export const fmtMod = (v: number) => (mod(v) >= 0 ? `+${mod(v)}` : String(mod(v)));
 
-/** Ficha de criatura (modelo "dnd5e-npc") a partir do bloco do SRD. */
-export function monsterCharacter(m: SrdMonster): Character {
+/** Ficha de criatura (modelo "dnd5e-npc" ou "sw5e-npc") a partir do bloco do bestiário. */
+export function monsterCharacter(m: Monster, sys: CompSystem): Character {
   const [str, dex, con, int, wis, cha] = m.abil;
   const dark = /visão no escuro ([\d,]+) m/.exec(m.senses);
   return {
     id: newId(),
     name: m.name,
-    template: "dnd5e-npc",
+    template: sys === "sw" ? "sw5e-npc" : "dnd5e-npc",
     controlledBy: [],
     shared: false,
     data: {
@@ -58,4 +63,8 @@ export function monsterCharacter(m: SrdMonster): Character {
   };
 }
 
-export const SRD_CREDIT = "Monstros e magias do SRD 5.1 (Wizards of the Coast), licença CC-BY-4.0, via 5e-bits/5e-database. Textos em inglês.";
+export const CREDIT: Record<CompSystem, string> = {
+  dnd: "Monstros e itens do SRD 5.1 (Wizards of the Coast), licença CC-BY-4.0, via 5e-bits/5e-database. Textos em inglês.",
+  sw: "Star Wars: blocos e itens escritos para esta mesa no estilo SW5e (não oficial); números aproximados. Star Wars © Lucasfilm.",
+};
+export const SPELL_CREDIT = "Magias do SRD 5.1 (Wizards of the Coast), licença CC-BY-4.0, via 5e-bits/5e-database. Textos em inglês.";
