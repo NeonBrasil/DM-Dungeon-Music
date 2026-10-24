@@ -1,10 +1,11 @@
 // Texto/handout: o mestre escreve (e decide se os jogadores veem); jogadores só leem.
 import { useRef } from "react";
 import { useState } from "react";
-import { api, game, uploadFile, useColl } from "../game.ts";
+import { api, game, useColl } from "../game.ts";
 import { closeHandout } from "../table/ui.ts";
 import { EditField } from "../ui/EditField.tsx";
 import { Icon } from "../ui/Icon.tsx";
+import { cropAndUpload } from "../ui/ImageCrop.tsx";
 import { Window } from "../ui/Window.tsx";
 
 export function HandoutWindow({ id }: { id: string }) {
@@ -69,7 +70,9 @@ export function HandoutWindow({ id }: { id: string }) {
               ref={fileRef} type="file" accept="image/*" hidden
               onChange={async (e) => {
                 const f = e.target.files?.[0];
-                if (f) up({ image: await uploadFile(f, f.name) });
+                e.target.value = "";
+                const url = f && (await cropAndUpload(f));
+                if (url) up({ image: url });
               }}
             />
           </div>

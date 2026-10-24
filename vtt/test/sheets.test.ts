@@ -88,3 +88,56 @@ test("perguntas na rolagem ?{…}", async () => {
   assert.deepEqual(qs[1].options, [["Normal", "1d20"], ["Vantagem", "2d20kh1"]]);
   assert.equal(fillQueries("/r 1d20 + ?{Bônus|2}", new Map([["Bônus", "5"]])), "/r 1d20 + 5");
 });
+
+test("ids de campo não se repetem dentro de um modelo", () => {
+  for (const t of BUILTIN) {
+    const ids = t.sections.flatMap((s) => s.fields.map((f) => f.id).filter(Boolean));
+    assert.equal(new Set(ids).size, ids.length, t.id);
+  }
+});
+
+test("importa a página HTML do criador SW e os números batem", async () => {
+  const { parseSheetHtml } = await import("../client/sheets/importHtml.ts");
+  const { SWCW } = await import("../client/sheets/templates.ts");
+  const row = (n: string, v: string, d: string) => `<tr><td>${n}</td><td style="text-align:right;">${v}</td><td style="color:#8a7d5a;">${d}</td></tr>`;
+  const stat = (n: string, v: number) => `<div class="stat"><div class="name">${n}</div><div class="val">${v}</div><div class="mod">x</div></div>`;
+  const html = `<h1>Kel Varo</h1><div class="meta"><div><strong>JOGADOR</strong><br>Ana &amp; Bia</div><div><strong>ESPÉCIE</strong><br>Cathar</div>
+    <div><strong>VOCAÇÃO</strong><br>Mandaloriano</div><div><strong>NÍVEL</strong><br>5 <span>(6500 XP)</span></div></div>
+    <h2>ATRIBUTOS</h2><div class="grid">${stat("FOR", 16)}${stat("DES", 14)}${stat("CON", 14)}${stat("INT", 12)}${stat("SAB", 10)}${stat("CAR", 8)}</div>
+    <h2>COMBATE</h2>
+    <p><strong>HP:</strong> 30 &nbsp;|&nbsp; <strong>Proficiência:</strong> +3 &nbsp;|&nbsp; <strong>Velocidade:</strong> 11m &nbsp;|&nbsp; <strong>Tamanho:</strong> Médio</p>
+    <table>${row("Blaster", "+8", "mod +2 · prof +3 · aptidão +3")}${row("Uso da Força", "+0", "mod +0 · sem treinamento")}</table>
+    <h2>PERÍCIAS</h2><table>${row("★ Sigilo", "+6", "mod +2 · treino +3 · vocação +1")}${row("Pilotagem", "+3", "mod +2 · vocação +1")}${row("Dança", "+1", "mod +1")}</table>
+    <h2>COMO ESTES NÚMEROS FUNCIONAM</h2><div class="nota">…</div>
+    <h2>TRAITS DE ORIGEM</h2><ul><li>Garras retráteis</li><li>Faro caçador</li></ul>
+    <h2>EQUIPAMENTO</h2><p><strong>Sabres:</strong></p><ul><li>(nenhum — ainda não conquistou)</li></ul><p><strong>Blasters:</strong></p><ul><li>Pistola WESTAR-34</li></ul>
+    <p><strong>Utilitários:</strong></p><ul><li>Jetpack</li><li>Visor noturno</li></ul>
+    <h2>ALINHAMENTO MORAL</h2><div class="badge">Inclinado à Luz</div><p>Pontuação: <strong>-7</strong> <span>(criação -7)</span></p>
+    <h2>HISTÓRIA</h2><p><strong>Aparência:</strong> Alto.</p><p><strong>Background:</strong> Linha 1.\n\nLinha 2.</p>
+    <p style="text-align:center">QUE A FORÇA ESTEJA COM VOCÊ</p>
+    <div class="dados">DADOS DA FICHA:<br>&lt;&lt;&lt;SWFICHA:v2:e30=&gt;&gt;&gt;</div>`;
+  const s = parseSheetHtml(html)!;
+  const { resolve } = resolver(SWCW, s.data);
+  assert.equal(s.name, "Kel Varo");
+  assert.equal(s.template, "swcw");
+  assert.equal(s.data.jogador, "Ana & Bia");
+  assert.equal(s.data.nivel, 5);
+  assert.equal(s.data.xp, 6500);
+  assert.equal(resolve("pb"), 3);
+  assert.equal(s.data.hp_max, 30);
+  assert.equal(s.data.deslocamento, "11m");
+  assert.equal(resolve("atk_blaster"), 8);
+  assert.equal(s.data.atk_blaster_bonus, 3);
+  assert.equal(resolve("atk_forca"), 0);
+  assert.equal(s.data.atk_forca_prof, 0);
+  assert.equal(resolve("sigilo"), 6);
+  assert.equal(s.data.sigilo_prof, 1);
+  assert.equal(resolve("pilotagem"), 3);
+  assert.equal(s.data.alinhamento, -7);
+  assert.equal(s.data.tracos, "Garras retráteis\nFaro caçador");
+  assert.deepEqual(s.data.armas, [{ name: "Pistola WESTAR-34", atk: "@{atk_blaster}", dmg: "", kind: "Blasters" }]);
+  assert.equal(s.data.equipamento, "Utilitários: Jetpack, Visor noturno");
+  assert.equal(s.data.background, "Linha 1.\n\nLinha 2.");
+  assert.match(String(s.data.notes), /Dança: \+1/); // perícia que o modelo não tem não se perde
+  assert.equal(parseSheetHtml("<html><body>outra coisa</body></html>"), null);
+});

@@ -3,9 +3,10 @@
 import { useMemo, useRef, useState } from "react";
 import type { Graphic, Layer } from "../../shared/types.ts";
 import { DRAWING_KINDS } from "../../shared/types.ts";
-import { game, send, uploadFile, useColl } from "../game.ts";
+import { game, send, useColl } from "../game.ts";
 import { EditField } from "../ui/EditField.tsx";
 import { Icon } from "../ui/Icon.tsx";
+import { cropAndUpload } from "../ui/ImageCrop.tsx";
 import { CONDITIONS } from "./conditions.ts";
 import { act } from "./history.ts";
 import { LIGHT_PRESETS } from "./ToolOptions.tsx";
@@ -30,7 +31,7 @@ function Conditions({ g, up }: { g: Graphic; up: (p: Record<string, unknown>) =>
 }
 
 /** Botão de trocar a imagem do token (jogador: só nos tokens dele). */
-function TokenImage({ up }: { up: (p: Record<string, unknown>) => void }) {
+function TokenImage({ g, up }: { g: Graphic; up: (p: Record<string, unknown>) => void }) {
   const ref = useRef<HTMLInputElement>(null);
   return (
     <>
@@ -40,7 +41,8 @@ function TokenImage({ up }: { up: (p: Record<string, unknown>) => void }) {
         onChange={async (e) => {
           const f = e.target.files?.[0];
           e.target.value = "";
-          if (f) up({ src: await uploadFile(f, f.name) });
+          const url = f && (await cropAndUpload(f, { aspect: g.w / g.h, size: 512 }));
+          if (url) up({ src: url });
         }}
       />
     </>
@@ -200,7 +202,7 @@ export function Inspector() {
             </div>
           </label>
         )}
-        {g.kind === "token" && <TokenImage up={up} />}
+        {g.kind === "token" && <TokenImage g={g} up={up} />}
         <Conditions g={g} up={up} />
         <AuraAndLight g={g} up={up} gm={false} unit={page.unit} />
       </div>
@@ -250,7 +252,7 @@ export function Inspector() {
 
       {g.kind === "token" && (
         <div className="row">
-          <TokenImage up={up} />
+          <TokenImage g={g} up={up} />
           {!g.src && <label className="row small muted">Cor <input type="color" value={g.color ?? "#c0392b"} onChange={(e) => up({ color: e.target.value })} /></label>}
         </div>
       )}

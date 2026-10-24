@@ -2,10 +2,11 @@
 import { useMemo, useRef, useState } from "react";
 import type { Character } from "../../shared/types.ts";
 import { newId } from "../../shared/util.ts";
-import { api, game, uploadFile, useColl } from "../game.ts";
+import { api, game, useColl } from "../game.ts";
 import { initialsOf } from "../chat/Chat.tsx";
 import { openHandout, openSheet, ui } from "../table/ui.ts";
 import { Icon } from "../ui/Icon.tsx";
+import { cropAndUpload } from "../ui/ImageCrop.tsx";
 import { Modal } from "../ui/Window.tsx";
 import { defaultData } from "./engine.ts";
 import { BUILTIN, findTemplate } from "./templates.ts";
@@ -34,10 +35,10 @@ export function Journal() {
     <div className="side-scroll">
       <div className="row">
         <h4 className="section-title grow" style={{ margin: 0 }}>Fichas</h4>
-        <button className="btn small" title="Importar ficha ou modelo (.json)" onClick={() => importRef.current?.click()}><Icon name="upload" size={14} /></button>
+        <button className="btn small" title="Importar ficha ou modelo (.json) ou ficha do criador SW (.html)" onClick={() => importRef.current?.click()}><Icon name="upload" size={14} /></button>
         <button className="btn small primary" onClick={() => setCreating(true)}><Icon name="plus" size={14} /> Nova ficha</button>
         <input
-          ref={importRef} type="file" accept=".json,application/json" hidden
+          ref={importRef} type="file" accept=".json,application/json,.html,.htm,text/html" hidden
           onChange={async (e) => {
             const f = e.target.files?.[0];
             e.target.value = "";
@@ -147,7 +148,8 @@ function NewCharacter({ onClose }: { onClose: () => void }) {
             if (!f) return;
             setUploading(true);
             try {
-              setAvatar(await uploadFile(f, f.name));
+              const url = await cropAndUpload(f, { aspect: 1, size: 512 });
+              if (url) setAvatar(url);
             } catch (err) {
               toast((err as Error).message);
             } finally {

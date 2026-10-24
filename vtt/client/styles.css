@@ -249,6 +249,12 @@ label.check { display: flex; align-items: center; gap: 6px; cursor: pointer; }
 .modal-back { position: fixed; inset: 0; background: rgba(0, 0, 0, 0.55); z-index: 80; display: grid; place-items: center; }
 .modal { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; box-shadow: var(--shadow); padding: 18px; width: min(460px, calc(100vw - 32px)); display: flex; flex-direction: column; gap: 12px; }
 .modal h3 { font-size: 18px; }
+.crop-view {
+  position: relative; overflow: hidden; margin: 0 auto; border-radius: 8px; border: 1px solid var(--line); cursor: grab; touch-action: none;
+  background: repeating-conic-gradient(#2a2d35 0 25%, #1d1f25 0 50%) 0 0 / 16px 16px;
+}
+.crop-view:active { cursor: grabbing; }
+.crop-view img { position: absolute; left: 50%; top: 50%; max-width: none; user-select: none; pointer-events: none; }
 
 .ctx-menu {
   position: fixed; z-index: 90; background: var(--panel); border: 1px solid var(--line); border-radius: 8px;
@@ -397,7 +403,7 @@ button.list-item { width: 100%; background: none; text-align: left; color: inher
 .macro-bar { position: absolute; left: 10px; bottom: 10px; z-index: 4; display: flex; gap: 4px; align-items: center; flex-wrap: wrap; max-width: calc(100% - 340px); }
 .macro-bar .macro { background: rgba(26, 28, 34, 0.94); }
 .skill.op .train { width: 40px; padding: 2px; border-radius: 6px; border: 1px solid var(--line); background: #15171c; color: var(--accent); font-weight: 700; }
-.skill.op .skill-bonus { width: 46px; padding: 2px 4px; text-align: center; }
+.skill .skill-bonus { width: 46px; padding: 2px 4px; text-align: center; }
 .skill em { color: var(--muted); font-style: normal; margin-left: 2px; }
 .attr .attr-op { width: 64px; text-align: center; font-size: 22px; font-weight: 700; padding: 2px 4px; }
 

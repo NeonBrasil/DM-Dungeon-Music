@@ -1,10 +1,11 @@
 // Janela de ficha: desenha qualquer modelo (prontos ou do mestre) a partir dos campos.
 import { useMemo, useRef, useState } from "react";
 import type { Character, SheetField, SheetTemplate } from "../../shared/types.ts";
-import { api, game, uploadFile, useColl } from "../game.ts";
+import { api, game, useColl } from "../game.ts";
 import { closeSheet, canControl, ui } from "../table/ui.ts";
 import { EditField } from "../ui/EditField.tsx";
 import { Icon } from "../ui/Icon.tsx";
+import { cropAndUpload } from "../ui/ImageCrop.tsx";
 import { Window } from "../ui/Window.tsx";
 import { initialsOf } from "../chat/Chat.tsx";
 import { expand, fmtBonus, resolver, rollCoc, rollFormula, rollOp, type RollCtx, type RollMode, type Row } from "./engine.ts";
@@ -38,7 +39,8 @@ export function SheetWindow({ id }: { id: string }) {
 
   const onAvatar = async (file: File | undefined) => {
     if (!file) return;
-    const url = await uploadFile(file, file.name);
+    const url = await cropAndUpload(file, { aspect: 1, size: 512 });
+    if (!url) return;
     // tokens da ficha que usavam a imagem antiga (ou nenhuma) passam a usar a nova
     for (const g of tokens) if ((!g.src || g.src === ch.avatar) && canControl(g.controlledBy)) api.update("graphics", g.id, { src: url });
     api.update("characters", id, { avatar: url });
@@ -86,7 +88,7 @@ export function SheetWindow({ id }: { id: string }) {
           >
             {!ch.avatar && initialsOf(ch.name)}
           </button>
-          <input ref={fileRef} type="file" accept="image/*" hidden onChange={(e) => onAvatar(e.target.files?.[0])} />
+          <input ref={fileRef} type="file" accept="image/*" hidden onChange={(e) => { onAvatar(e.target.files?.[0]); e.target.value = ""; }} />
           <div className="grow col" style={{ gap: 4 }}>
             <EditField className="input sheet-name" value={ch.name} readOnly={!editable} onCommit={(v) => api.update("characters", id, { name: v || "Sem nome" })} />
             <div className="row small muted">
@@ -286,6 +288,12 @@ function FieldView({ f, ch, t, ctx, calc, editable, set, cocMod }: FieldProps) {
           <button className="skill-name" onClick={() => f.roll && rollFormula(ctx, f.roll, label, undefined, f.tracker)}>
             {label} {f.ability && <small>({f.ability})</small>}{f.hint && <em title={f.hint}>*</em>}
           </button>
+          {f.bonus && (
+            <EditField
+              className="input skill-bonus" type="number" value={Number(ch.data[`${id}_bonus`] ?? 0)} readOnly={!editable}
+              title="Outros bônus (ex.: aptidão da vocação)" onCommit={(v) => set(`${id}_bonus`, Number(v) || 0)}
+            />
+          )}
           <b>{fmtBonus(calc.resolve(id))}</b>
         </div>
       );

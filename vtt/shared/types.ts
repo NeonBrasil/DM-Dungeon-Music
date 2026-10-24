@@ -150,6 +150,7 @@ export interface SheetField {
   span?: number;         // colunas ocupadas
   columns?: SheetField[]; // list: colunas de cada linha
   hint?: string;         // dica curta (ex.: "só treinada")
+  bonus?: boolean;       // skill d20: mostra campo editável `${id}_bonus` (ex.: aptidão da vocação)
 }
 
 export interface SheetSection {

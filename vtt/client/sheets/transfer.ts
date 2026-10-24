@@ -1,7 +1,8 @@
-// Exportar/importar fichas e modelos entre campanhas (arquivos .json).
+// Exportar/importar fichas e modelos entre campanhas (arquivos .json) e importar a página HTML do criador de fichas SW.
 import type { Character, SheetTemplate } from "../../shared/types.ts";
 import { newId } from "../../shared/util.ts";
 import { api, game, uploadFile } from "../game.ts";
+import { parseSheetHtml } from "./importHtml.ts";
 import { BUILTIN } from "./templates.ts";
 
 interface CharacterFile {
@@ -60,8 +61,23 @@ function ensureTemplate(def: SheetTemplate): string {
   return id;
 }
 
+function createCharacter(name: string, template: string, data: Record<string, unknown>, avatar?: string) {
+  const { role, playerId } = game.get();
+  api.create("characters", {
+    id: newId(), name, template, data, avatar,
+    controlledBy: role === "gm" ? [] : [playerId!], shared: false,
+  });
+}
+
 export async function importFile(file: File): Promise<string> {
-  const json = JSON.parse(await file.text());
+  const text = await file.text();
+  if (/\.html?$/i.test(file.name) || text.trimStart().startsWith("<")) {
+    const sheet = parseSheetHtml(text);
+    if (!sheet) throw new Error("Esse HTML não é uma ficha do criador de personagens.");
+    createCharacter(sheet.name, sheet.template, sheet.data);
+    return `Ficha "${sheet.name}" importada. Confira e complete o que faltar (CA, dano das armas…).`;
+  }
+  const json = JSON.parse(text);
   if (json?.type === "dm-mesa-modelo" && json.template?.sections) {
     if (game.get().role !== "gm") throw new Error("Só o mestre importa modelos.");
     ensureTemplate(json.template);
@@ -79,10 +95,6 @@ export async function importFile(file: File): Promise<string> {
     const blob = await (await fetch(c.avatar)).blob();
     avatar = await uploadFile(blob, `avatar.${blob.type.split("/")[1] || "png"}`);
   }
-  const { role, playerId } = game.get();
-  api.create("characters", {
-    id: newId(), name: String(c.name || "Personagem"), template, data: c.data ?? {}, avatar,
-    controlledBy: role === "gm" ? [] : [playerId!], shared: false,
-  });
+  createCharacter(String(c.name || "Personagem"), template, c.data ?? {}, avatar);
   return `Ficha "${c.name}" importada.`;
 }

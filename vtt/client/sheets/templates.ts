@@ -149,6 +149,84 @@ export const SW5E: SheetTemplate = {
   }),
 };
 
+// ─── Star Wars — Clone Wars (vocações) ───────────────────────────────────────
+// Mesmo sistema do criador de fichas SW (HTML importável): perícia/ataque = mod + proficiência (se treinada) + aptidão.
+
+const SWCW_ATTR: [string, string][] = [["for", "FOR"], ["des", "DES"], ["con", "CON"], ["int", "INT"], ["sab", "SAB"], ["car", "CAR"]];
+const SWCW_SKILLS: [string, string, string][] = [
+  ["acrobacia", "Acrobacia", "des"], ["arrombamento", "Arrombamento", "des"], ["atletismo", "Atletismo", "for"], ["historia", "História", "int"],
+  ["intimidacao", "Intimidação", "car"], ["intuicao", "Intuição", "sab"], ["investigacao", "Investigação", "int"], ["mecanica", "Mecânica", "int"],
+  ["medicina", "Medicina", "sab"], ["natureza", "Natureza", "int"], ["percepcao", "Percepção", "sab"], ["persuasao", "Persuasão", "car"],
+  ["pilotagem", "Pilotagem", "des"], ["sigilo", "Sigilo", "des"], ["sobrevivencia", "Sobrevivência", "sab"], ["tatica", "Tática", "int"],
+  ["tecnologia", "Tecnologia", "int"], ["trapaca", "Trapaça", "car"],
+];
+
+const swcwCheck = (id: string, label: string, ability: string, mod: string): SheetField =>
+  F("skill", id, label, { ability, bonus: true, formula: `${mod} + @{pb} * @{${id}_prof} + @{${id}_bonus}`, roll: `1d20 + @{${id}}` });
+
+export const SWCW: SheetTemplate = {
+  id: "swcw",
+  name: "Star Wars — Clone Wars (vocações)",
+  builtin: true,
+  advantage: true,
+  sections: [
+    {
+      title: "Personagem",
+      columns: 4,
+      fields: [
+        F("text", "jogador", "Jogador"), F("text", "especie", "Espécie"), F("text", "vocacao", "Vocação"), F("number", "nivel", "Nível", { default: 1 }),
+        F("number", "xp", "XP", { default: 0 }), F("text", "tamanho", "Tamanho", { default: "Médio" }),
+        F("computed", "pb", "Bônus de proficiência", { formula: "2 + floor((@{nivel} - 1) / 4)" }),
+        F("number", "alinhamento", "Alinhamento (Sith −100 · Jedi +100)", { default: 0 }),
+      ],
+    },
+    { title: "Atributos", columns: 6, fields: SWCW_ATTR.map(([k, abbr]) => F("attribute", k, abbr, { default: 10, formula: `floor((@{${k}} - 10) / 2)`, roll: `1d20 + @{${k}_mod}` })) },
+    {
+      title: "Combate",
+      columns: 4,
+      fields: [
+        F("resource", "hp", "Pontos de vida", { default: 10 }),
+        F("number", "ca", "Classe de armadura", { default: 10 }),
+        F("computed", "init", "Iniciativa", { formula: "@{des_mod}", roll: "1d20 + @{init}", tracker: true }),
+        F("text", "deslocamento", "Deslocamento", { default: "9 m" }),
+      ],
+    },
+    {
+      title: "Ataques",
+      columns: 2,
+      fields: [
+        swcwCheck("atk_sabre", "Sabre de Luz", "FOR/DES", "max(@{for_mod}, @{des_mod})"),
+        swcwCheck("atk_blaster", "Blaster", "DES", "@{des_mod}"),
+        swcwCheck("atk_corpo", "Corpo a Corpo", "FOR", "@{for_mod}"),
+        swcwCheck("atk_forca", "Uso da Força", "SAB", "@{sab_mod}"),
+        F("list", "armas", "Armas", {
+          span: 99,
+          columns: [
+            F("text", "name", "Arma"), F("text", "atk", "Acerto", { default: "@{atk_blaster}" }), F("text", "dmg", "Dano"), F("text", "kind", "Tipo"),
+            F("roll", "r_atk", "Ataque", { roll: "1d20 + @{.atk}" }), F("roll", "r_dmg", "Dano", { roll: "@{.dmg}" }),
+          ],
+        }),
+      ],
+    },
+    {
+      title: "Perícias",
+      columns: 2,
+      fields: [
+        ...SWCW_SKILLS.map(([id, label, ab]) => swcwCheck(id, label, ab.toUpperCase(), `@{${ab}_mod}`)),
+        F("computed", "passiva", "Percepção passiva", { formula: "10 + @{percepcao}" }),
+      ],
+    },
+    { title: "Poderes da Força", fields: [spellList("poderes", "Poderes")] },
+    {
+      title: "Equipamento e história",
+      fields: [
+        notes("equipamento", "Equipamento (armaduras, utilitários)"), notes("tracos", "Traços de origem"), notes("aparencia", "Aparência"),
+        notes("personalidade", "Personalidade"), notes("background", "História (background)"), notes("objetivos", "Objetivos"), notes("notes", "Anotações"),
+      ],
+    },
+  ],
+};
+
 // ─── Call of Cthulhu 7e ──────────────────────────────────────────────────────
 
 const coc = (id: string, label: string, base: number): SheetField => F("skill", id, label, { check: "coc", default: base });
@@ -479,7 +557,7 @@ export const DND5E_NPC: SheetTemplate = {
 /** Criatura do bestiário Star Wars: mesmos campos da criatura D&D. */
 export const SW5E_NPC: SheetTemplate = { ...DND5E_NPC, id: "sw5e-npc", name: "SW5e — Criatura" };
 
-export const BUILTIN: SheetTemplate[] = [FREE, DND5E, DND5E_NPC, SW5E, SW5E_NPC, COC7E, ORDEM, T20];
+export const BUILTIN: SheetTemplate[] = [FREE, DND5E, DND5E_NPC, SW5E, SW5E_NPC, SWCW, COC7E, ORDEM, T20];
 
 export function findTemplate(id: string, custom: Record<string, SheetTemplate>): SheetTemplate {
   return BUILTIN.find((t) => t.id === id) ?? custom[id] ?? FREE;
