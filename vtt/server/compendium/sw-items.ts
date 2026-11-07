@@ -77,9 +77,9 @@ export const SW_ITEMS: Item[] = [
   // ─── Equipamento ───────────────────────────────────────────────────────────
   gear("comlink", "Comlink", { cost: "25 cr", weight: "—", desc: "Comunicador de voz com alcance planetário (curto sem satélites)." }),
   gear("macrobinoculars", "Macrobinóculos", { cost: "150 cr", weight: "0,5 kg", desc: "Vantagem em Percepção para ver detalhes a grande distância; mede distâncias e marca alvos." }),
-  gear("medpac", "Medpac", { cost: "100 cr", weight: "0,5 kg", dmg: "2d4+2", dmgType: "cura", desc: "Com uma ação, uma criatura viva recupera 2d4 + 2 PV. Uso único." }),
+  gear("medpac", "Medpac", { cost: "100 cr", weight: "0,5 kg", dmg: "2d4+2", dmgType: "cura", use: { expr: "2d4+2", res: "PV", turn: "Turno inteiro" }, desc: "Com uma ação, uma criatura viva recupera 2d4 + 2 PV. Uso único." }),
   gear("medkit", "Kit médico", { cost: "300 cr", weight: "2 kg", desc: "10 usos: estabiliza uma criatura a 0 PV sem teste de Medicina; vantagem em testes de Medicina." }),
-  gear("bacta-patch", "Adesivo de bacta", { cost: "50 cr", weight: "—", desc: "Ação bônus: recupera 1d4 PV e encerra um sangramento ou queimadura." }),
+  gear("bacta-patch", "Adesivo de bacta", { cost: "50 cr", weight: "—", use: { expr: "1d4", res: "PV", turn: "Ação bônus" }, desc: "Ação bônus: recupera 1d4 PV e encerra um sangramento ou queimadura." }),
   gear("stim-adrenal", "Estimulante adrenal", { cost: "200 cr", weight: "—", desc: "Por 1 minuto, vantagem em testes e salvaguardas de Força. Depois, um nível de exaustão." }),
   gear("tool-kit", "Kit de ferramentas", { cost: "250 cr", weight: "5 kg", desc: "Necessário para consertar droides, veículos e equipamentos." }),
   gear("slicer-kit", "Kit de fatiador (slicer)", { cost: "500 cr", weight: "1 kg", desc: "Vantagem em testes de Tecnologia para invadir computadores e travas." }),

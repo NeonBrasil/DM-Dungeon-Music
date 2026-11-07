@@ -1,7 +1,10 @@
-// Exportar/importar fichas e modelos entre campanhas (arquivos .json) e importar a página HTML do criador de fichas SW.
+// Exportar/importar fichas e modelos entre campanhas (arquivos .json) e importar fichas de criadores externos
+// (página HTML do criador SW; .html/.txt do criador antigo do Nightfall).
 import type { Character, SheetTemplate } from "../../shared/types.ts";
 import { newId } from "../../shared/util.ts";
 import { api, game, uploadFile } from "../game.ts";
+import { isOldSheet, parseOldHtml, parseOldTxt } from "../nightfall/importOld.ts";
+import { toData } from "../nightfall/state.ts";
 import { parseSheetHtml } from "./importHtml.ts";
 import { BUILTIN } from "./templates.ts";
 
@@ -71,6 +74,13 @@ function createCharacter(name: string, template: string, data: Record<string, un
 
 export async function importFile(file: File): Promise<string> {
   const text = await file.text();
+  if (isOldSheet(text)) {
+    // ficha do criador antigo do Nightfall (.html ou .txt): vira ficha Nightfall, atualizável no criador
+    const s = text.trimStart().startsWith("<") ? parseOldHtml(text) : parseOldTxt(text);
+    const name = s.nome || "Personagem";
+    createCharacter(name, "nightfall", toData(s));
+    return `Ficha "${name}" importada para o Nightfall. Use o botão Criador na ficha para atualizar.`;
+  }
   if (/\.html?$/i.test(file.name) || text.trimStart().startsWith("<")) {
     const sheet = parseSheetHtml(text);
     if (!sheet) throw new Error("Esse HTML não é uma ficha do criador de personagens.");

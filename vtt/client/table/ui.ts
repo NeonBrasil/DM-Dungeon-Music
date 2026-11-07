@@ -24,6 +24,9 @@ export const ui = createStore({
   showWalls: false,
   lightPreview: false,                     // mestre: ver como o token selecionado
   sheets: [] as string[],                  // fichas abertas
+  nightfall: null as null | { id?: string; initial?: { nome?: string; avatar?: string } }, // criador Nightfall aberto
+  fight: null as null | { a?: string; b?: string },  // painel de luta: lutadores (id do token ou "ch:" + id da ficha)
+  attack: null as null | { target: string; from?: string }, // janela de ataque: token alvo e quem ataca (token ou "ch:" + id)
   handouts: [] as string[],
   showTurns: false,
   showTemplates: false,

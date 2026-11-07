@@ -5,7 +5,8 @@ import { Rng } from "./rng.ts";
 import { waterBlob } from "./ink.ts";
 import { Deck, dungeonHook, dungeonTitle, roomText, type Theme, type Title } from "./names.ts";
 
-export type DoorType = "door" | "open" | "locked" | "secret" | "portcullis";
+/** open = passagem em arco (sem porta); ajar = porta que começa aberta; magic/puzzle = seladas (só o mestre abre). */
+export type DoorType = "door" | "open" | "ajar" | "locked" | "magic" | "puzzle" | "secret" | "portcullis";
 export type PropKind =
   | "column" | "statue" | "altar" | "fountain" | "well" | "sarcophagus" | "chest" | "barrel" | "crate"
   | "table" | "bed" | "throne" | "rubble" | "bones" | "stairsDown" | "stairsUp" | "pit" | "brazier" | "shelf" | "cage" | "circle";

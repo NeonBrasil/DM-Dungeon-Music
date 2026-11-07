@@ -2,13 +2,21 @@
 // cliente só o que ele pode ver (jogadores nunca recebem camada do mestre, notas, etc.).
 import crypto from "node:crypto";
 import type { WebSocket } from "ws";
-import type { C2S, S2C } from "../shared/protocol.ts";
+import type { C2S, FightRef, S2C } from "../shared/protocol.ts";
 import type {
   ChatMsg, CollName, Colls, Deck, Graphic, Page, Role, RollResult, Settings,
 } from "../shared/types.ts";
 import { COLL_NAMES, DRAWING_KINDS } from "../shared/types.ts";
 import { applyPatch, ID_RE, newId } from "../shared/util.ts";
-import { DiceError, parse, roll, rollCoc } from "../shared/dice.ts";
+import { attackOutcome, COC_LABEL, DiceError, parse, roll, rollCoc } from "../shared/dice.ts";
+import {
+  type Action, applyDefenses, cantAct, conditionEdge, type Cover, COVER_BONUS, COVER_LABEL, coverBetween, defaultResolve, defenseOf,
+  defensesOf, fmtNum, itemTiming, rangeState, rangeText, type Resolve, resourceField, resourceLabel, type Save, SAVE_LABEL, saveEdge, saveTest, sheetActions,
+  tokenDistance, toMeters,
+} from "../shared/combat.ts";
+import { applyMode, expand, fieldIndex, opExpr } from "../shared/sheet.ts";
+// modelos de ficha prontos: dados puros, os mesmos do cliente
+import { findTemplate } from "../client/sheets/templates.ts";
 import { blockingSegments, crossesWall } from "../shared/vision.ts";
 import type { CampaignFile } from "./store.ts";
 
@@ -237,6 +245,8 @@ export class Room {
       case "chat": return this.chat(client, String(msg.text ?? ""), msg.as);
       case "roll": return this.rollRequest(client, msg);
       case "door": return this.toggleDoor(client, msg.pageId, msg.doorId);
+      case "attack": return this.attack(client, msg);
+      case "consume": return this.consume(client, msg);
       case "deck": return this.deckOp(client, msg);
       case "ping":
       case "ruler": {
@@ -404,11 +414,358 @@ export class Room {
     if (!page || !door) return;
     if (client.role !== "gm") {
       if (page.id !== this.settings.playerPageId || door.secret) return;
+      if (door.seal === "magic") throw new Error("A porta está selada por magia.");
+      if (door.seal === "puzzle") throw new Error("A porta está presa por um enigma.");
       if (door.locked) throw new Error("A porta está trancada.");
     }
     door.open = !door.open;
     this.push("pages", page.id);
     this.changed();
+  }
+
+  // ─── Combate ───────────────────────────────────────────────────────────────
+
+  /**
+   * Lutador: token e/ou ficha. A ficha dá ataques, CA, resistências (mesmo em token desvinculado);
+   * o PV vem da ficha vinculada ou da barra do token.
+   */
+  private fighter(ref: FightRef) {
+    const g = ref.graphicId ? this.c.graphics[ref.graphicId] : undefined;
+    const sheetId = ref.characterId ?? g?.characterId;
+    const sheet = sheetId ? this.c.characters[sheetId] : undefined;
+    if (!g && !sheet) return null;
+    const t = sheet ? findTemplate(sheet.template, this.c.templates) : null;
+    const linked = ref.characterId || (g && !g.unlinked) ? sheet : undefined;
+    const onSheet = !!linked && linked.data?.hp !== undefined && Number.isFinite(Number(linked.data.hp));
+    const bar = g?.bar;
+    const hp = onSheet
+      ? {
+        get: () => ({ hp: Number(linked!.data.hp), max: Number(linked!.data.hp_max ?? linked!.data.hp) }),
+        set: (v: number) => {
+          linked!.data.hp = v;
+          this.push("characters", linked!.id);
+          this.syncBars(linked!.id);
+        },
+      }
+      : bar
+        ? { get: () => ({ hp: bar.value, max: bar.max }), set: (v: number) => { bar.value = v; this.push("graphics", g!.id); } }
+        : null;
+    const temp = onSheet && Number(linked!.data.hp_temp) > 0 ? Number(linked!.data.hp_temp) : 0;
+    return {
+      g, sheet, t, hp, temp,
+      setTemp: (v: number) => {
+        linked!.data.hp_temp = v;
+        this.push("characters", linked!.id);
+      },
+      name: g?.name || sheet?.name || "Alvo",
+      markers: g?.markers ?? [],
+      // personagem de jogador (ou aliado controlado): CA e PV aparecem no chat; de criatura, não
+      pc: !!sheet?.controlledBy?.length || !!g?.controlledBy?.length,
+      defense: t && sheet ? defenseOf(t, sheet.data) : null,
+      defenses: t && sheet ? defensesOf(t, sheet.data) : null,
+      owned: (cl: Client) => this.controls(cl, sheet?.controlledBy) || (!!g && this.controls(cl, g.controlledBy)),
+    };
+  }
+
+  /** Com a iniciativa aberta, jogador só ataca na vez do próprio personagem. */
+  private turnError(f: NonNullable<ReturnType<Room["fighter"]>>): string | null {
+    const turns = this.settings.turns;
+    if (!turns.open || !turns.entries.length) return null;
+    const cur = turns.entries[turns.current];
+    const cg = cur?.graphicId ? this.c.graphics[cur.graphicId] : undefined;
+    const mine = (!!f.g && cg?.id === f.g.id) || (!!f.sheet && cg?.characterId === f.sheet.id) || (!cg && cur?.name === f.name);
+    return mine ? null : `Não é a vez de ${f.name}${cur ? ` (vez de ${cur.name})` : ""}.`;
+  }
+
+  /** Na vez dele, já gastou o turno inteiro (bebeu uma poção de turno inteiro, por exemplo)? */
+  private spentError(f: NonNullable<ReturnType<Room["fighter"]>>): string | null {
+    const turns = this.settings.turns;
+    const cur = turns.open ? turns.entries[turns.current] : undefined;
+    if (!cur || turns.spent?.at !== `${turns.round}:${cur.id}` || this.turnError(f)) return null;
+    return `${f.name} já gastou o turno (${turns.spent.what}).`;
+  }
+
+  private attack(client: Client, msg: Extract<C2S, { t: "attack" }>) {
+    const gm = client.role === "gm";
+    const force = gm && !!msg.force;
+    const A = this.fighter(msg.from ?? {});
+    const T = this.fighter(msg.to ?? {});
+    if (!A) throw new Error("Escolha quem ataca.");
+    if (!T) throw new Error("Escolha o alvo.");
+    if (!gm && !A.owned(client)) throw new Error("Você só ataca com um personagem seu.");
+    if (!gm && !msg.use) throw new Error("Escolha uma arma ou magia da ficha.");
+    // ficha sem token: usa o token dela que estiver na página do alvo (para medir a distância)
+    if (!A.g && A.sheet && T.g) {
+      const mine = Object.values(this.c.graphics).filter((x) => x.characterId === A.sheet!.id && x.pageId === T.g!.pageId && x.kind === "token");
+      A.g = mine.find((x) => !x.unlinked) ?? mine[0];
+    }
+    const extras = (Array.isArray(msg.also) ? msg.also.slice(0, 40) : [])
+      .map((r) => this.fighter(r ?? {}))
+      .filter((f): f is NonNullable<typeof f> => !!f && (!f.g || f.g.id !== T.g?.id));
+    if (!gm) {
+      const page = this.settings.playerPageId;
+      for (const f of [A, T, ...extras]) if (f.g && (f.g.pageId !== page || f.g.layer === "gm")) throw new Error("Esse alvo não está à vista.");
+      const turn = this.turnError(A) ?? this.spentError(A);
+      if (turn) throw new Error(turn);
+    }
+
+    // ação: da ficha (recalculada aqui) ou personalizada (mestre)
+    let action: Action;
+    if (msg.use) {
+      if (!A.sheet || !A.t) throw new Error(`${A.name} não tem ficha.`);
+      const found = sheetActions(A.t, A.sheet.data).find((x) => x.key === msg.use);
+      if (!found) throw new Error("Essa arma ou magia não está mais na ficha.");
+      action = found;
+    } else {
+      const atk = msg.atk ? String(msg.atk).slice(0, 300) : undefined;
+      action = {
+        key: "custom", group: "", label: String(msg.label ?? "Ataque").slice(0, 120), spell: false,
+        test: atk ? { kind: "d20", expr: atk } : undefined, dmg: msg.dmg ? String(msg.dmg).slice(0, 300) : undefined,
+        crit: { min: 20, mult: 2 }, half: true,
+      };
+    }
+    const how: Resolve = msg.how === "attack" || msg.how === "save" || msg.how === "auto" ? msg.how : defaultResolve(action);
+    const test = action.test ?? action.spellTest;
+    if (how === "attack" && !test) throw new Error(`${action.label} não tem teste de ataque.`);
+    if (action.qty !== undefined && action.qty <= 0) throw new Error(`${action.label}: acabou (quantidade 0).`);
+    const cost = action.cost && A.sheet ? action.cost : undefined;
+    const has = cost ? Number(A.sheet!.data[cost.field] ?? 0) || 0 : 0;
+    if (cost && has < cost.amount && !force) throw new Error(`${A.name} não tem ${cost.label} para ${action.label} (tem ${has}).`);
+    const stop = cantAct(A.markers);
+    if (stop && !force) throw new Error(`${A.name} está ${stop} e não pode atacar.`);
+    if (A.hp && A.hp.get().hp <= 0 && !force) throw new Error(`${A.name} está com 0 PV.`);
+
+    // mapa: distância, alcance e cobertura até o alvo principal
+    const page = A.g && T.g && A.g.pageId === T.g.pageId ? this.c.pages[A.g.pageId] : undefined;
+    const dist = page ? tokenDistance(A.g!, T.g!, page, this.settings.diagonal) : null;
+    const meters = page && dist !== null ? toMeters(dist, page.unit) : null;
+    const where = meters === null ? "unknown" : rangeState(action.range, meters);
+    const cover: Cover = page && A.g !== T.g ? coverBetween(A.g!, T.g!, page) : "none";
+    if (!force && where === "far") {
+      throw new Error(`${T.name} está fora do alcance: ${fmtNum(dist!)} ${page!.unit} (${action.label}: ${action.rangeText ?? rangeText(action.range!)}).`);
+    }
+    if (!force && cover === "total") throw new Error(`Sem linha de visão até ${T.name}: tem parede no caminho.`);
+    // área: os outros alvos precisam estar dentro do raio, a partir do alvo principal
+    const area = Math.max(0, Number(msg.area) || 0);
+    const inArea = how === "attack" || !area || !page ? [] : extras.filter((f) => {
+      if (!f.g || f.g.pageId !== page.id) return gm;
+      return Math.hypot(f.g.x + f.g.w / 2 - (T.g!.x + T.g!.w / 2), f.g.y + f.g.h / 2 - (T.g!.y + T.g!.h / 2)) <= ((area / page.scale) + 0.5) * page.gridSize;
+    });
+
+    // gasta munição / granada
+    if (action.qty !== undefined && action.qtyCol && A.sheet) {
+      const [list, i] = action.key.split(":");
+      const rows = A.sheet.data[list] as Record<string, unknown>[] | undefined;
+      if (rows?.[Number(i)]) {
+        rows[Number(i)][action.qtyCol] = action.qty - 1;
+        this.push("characters", A.sheet.id);
+      }
+    }
+    // gasta mana / PE / PM / espaço de magia
+    if (cost) {
+      A.sheet!.data[cost.field] = Math.max(0, has - cost.amount);
+      this.push("characters", A.sheet!.id);
+    }
+
+    const who = { ...this.identity(client, A.sheet?.id), name: A.name };
+    const whisper = msg.secret ? ["gm"] : undefined;
+    const label = msg.use ? `${A.name}: ${action.label}` : action.label;
+    const show = (f: { pc: boolean }) => !!msg.secret || f.pc;
+    const advT = !!A.t?.advantage;
+    const range = dist !== null ? ` (${fmtNum(dist)} ${page!.unit})` : "";
+    const left = (action.qty !== undefined ? ` · restam ${action.qty - 1}` : "")
+      + (cost ? ` · gastou ${cost.label} (${A.t ? resourceLabel(A.t, cost.field) : cost.field}: ${Math.max(0, has - cost.amount)})` : "");
+    const roll1 = (expr: string) => roll(expr.slice(0, 300), rng);
+
+    /** Tira o dano do PV (PV temporário primeiro), depois das resistências. Devolve o texto do resultado. */
+    const hurt = (f: NonNullable<typeof T>, raw: number): string => {
+      const d = applyDefenses(raw, action.dmgType, f.defenses);
+      const notes = d.note ? [d.note] : [];
+      let dmg = d.dmg;
+      if (!f.hp) return `${dmg}${notes.length ? ` (${notes.join(", ")})` : ""} · sem PV para tirar`;
+      if (f.temp > 0 && dmg > 0) {
+        const used = Math.min(f.temp, dmg);
+        f.setTemp(f.temp - used);
+        dmg -= used;
+        notes.push(`${used} nos PV temporários`);
+      }
+      const { hp, max } = f.hp.get();
+      const next = Math.max(0, hp - dmg);
+      f.hp.set(next);
+      const state = show(f) ? `PV ${next}/${max}${next === 0 ? " — caiu!" : ""}` : next === 0 ? "caiu!" : next <= max / 2 ? "muito ferido" : "ferido";
+      return `${d.dmg}${notes.length ? ` (${notes.join(", ")})` : ""} · ${state}`;
+    };
+    const dmgExpr = (crit: boolean, max: boolean) => {
+      if (!action.dmg) return "";
+      if (max) return action.dmg.replace(/(\d*)d(\d+)/gi, (_, n: string, s: string) => String((Number(n) || 1) * Number(s)));
+      if (!crit) return action.dmg;
+      return action.dmg.replace(/(\d*)d(\d+)/gi, (_, n: string, s: string) => `${(Number(n) || 1) * action.crit.mult}d${s}`);
+    };
+
+    try {
+      if (how === "attack") {
+        const edge = conditionEdge(A.markers, T.markers, meters);
+        if (msg.mode === "adv") edge.adv.push("escolhida");
+        if (msg.mode === "dis") edge.dis.push("escolhida");
+        if (where === "long") edge.dis.push("longa distância");
+        const net = Math.sign(edge.adv.length) - Math.sign(edge.dis.length);
+        const bonus = Math.trunc(Number(msg.bonus) || 0);
+        const notes = [
+          edge.adv.length ? `vantagem: ${edge.adv.join(", ")}` : "",
+          edge.dis.length ? `desvantagem: ${edge.dis.join(", ")}` : "",
+          bonus ? `bônus ${bonus > 0 ? "+" : ""}${bonus}` : "",
+          COVER_LABEL[cover],
+        ].filter(Boolean);
+        let r: RollResult;
+        let hit: boolean;
+        let crit: boolean;
+        let verdict: string;
+        let shownCa = "";
+        if (test!.kind === "coc") {
+          // CoC: dado de bônus/penalidade no lugar de vantagem; cobertura = dado de penalidade
+          r = rollCoc(test!.skill + bonus, net - (cover === "none" ? 0 : 1), rng);
+          const level = r.coc!.level;
+          hit = level !== "failure" && level !== "fumble";
+          crit = level === "critical" || level === "extreme";
+          verdict = `${COC_LABEL[level]}${hit ? (crit ? " — dano máximo" : " — acertou") : " — errou"}`;
+        } else {
+          let expr: string;
+          if (test!.kind === "op") expr = opExpr(test!.dice + net, test!.bonus + bonus);
+          else {
+            // vantagem nos sistemas d20 que têm; nos outros (T20, ficha livre) vale ±5
+            expr = advT ? applyMode(test!.expr, net > 0 ? "adv" : net < 0 ? "dis" : "normal") : net ? `${test!.expr} ${net > 0 ? "+" : "-"} 5` : test!.expr;
+            if (bonus) expr += ` ${bonus < 0 ? "-" : "+"} ${Math.abs(bonus)}`;
+          }
+          r = roll1(expr);
+          const ca = (gm && typeof msg.ca === "number" && Number.isFinite(msg.ca) ? msg.ca : T.defense ?? 10) + COVER_BONUS[cover];
+          const out = attackOutcome(r, ca);
+          hit = out.hit;
+          crit = hit && ((out.nat ?? 0) >= action.crit.min || edge.autoCrit);
+          verdict = crit ? "CRÍTICO!" : hit ? "acertou" : out.nat === 1 ? "falha crítica" : out.nat === 20 ? "errou (nem o 20 natural alcança a CA)" : "errou";
+          if (show(T)) shownCa = ` (CA ${ca})`;
+        }
+        this.post({ ...who, kind: "roll", roll: r, label: `${label} → ${T.name}${range}${shownCa}: ${verdict}${notes.length ? ` · ${notes.join(" · ")}` : ""}${left}`, whisper });
+        if (!hit || !action.dmg) return;
+        const dr = roll1(dmgExpr(crit, crit && test!.kind === "coc"));
+        const raw = Math.max(0, Math.round(dr.total));
+        this.post({ ...who, kind: "roll", roll: dr, label: `Dano em ${T.name}${crit ? " (crítico)" : ""}: ${hurt(T, raw)}`, whisper });
+        return;
+      }
+
+      // resistência ou acerto automático: todos os alvos da área levam o mesmo dano
+      const targets = [T, ...inArea];
+      const dr = action.dmg ? roll1(dmgExpr(false, false)) : null;
+      const raw = dr ? Math.max(0, Math.round(dr.total)) : 0;
+      if (how === "auto") {
+        if (!dr) throw new Error(`${action.label} não tem dano.`);
+        if (targets.length === 1) {
+          this.post({ ...who, kind: "roll", roll: dr, label: `${label} → ${T.name}${range}: Dano em ${T.name}: ${hurt(T, raw)}${left}`, whisper });
+          return;
+        }
+        this.post({ ...who, kind: "roll", roll: dr, label: `${label} → ${targets.map((f) => f.name).join(", ")}${range}${left}`, whisper });
+        for (const f of targets) this.post({ ...who, kind: "system", text: `Dano em ${f.name}: ${hurt(f, raw)}`, whisper });
+        return;
+      }
+      const ab: Save = msg.save && msg.save in SAVE_LABEL ? msg.save : action.save ?? "des";
+      const dc = action.dc ?? 10;
+      const head = `${label} → ${targets.map((f) => f.name).join(", ")}${range} · resistência de ${SAVE_LABEL[ab]} CD ${dc}${left}`;
+      if (dr) this.post({ ...who, kind: "roll", roll: dr, label: head, whisper });
+      else this.post({ ...who, kind: "system", text: head, whisper });
+      for (const f of targets) {
+        // cobertura: do atacante até o alvo principal; da explosão (alvo principal) até os outros
+        const from = f === T ? A.g : T.g;
+        const cov: Cover = page && from && f.g && from !== f.g ? coverBetween(from, f.g, page) : "none";
+        if (cov === "total" && f !== T) {
+          this.post({ ...who, kind: "system", text: `${f.name}: protegido pela parede`, whisper });
+          continue;
+        }
+        const e = saveEdge(f.markers, ab);
+        const coverB = ab === "des" ? COVER_BONUS[cov] : 0;
+        let saved = false;
+        let sr: RollResult | null = null;
+        if (!e.autoFail) {
+          const st = f.t && f.sheet ? saveTest(f.t, f.sheet.data, ab) : { kind: "d20" as const, expr: "1d20" };
+          if (st.kind === "coc") {
+            sr = rollCoc(st.skill, e.dis ? -1 : 0, rng);
+            saved = sr.coc!.level !== "failure" && sr.coc!.level !== "fumble";
+          } else {
+            const tAdv = !!f.t?.advantage;
+            let expr = st.kind === "op" ? opExpr(st.dice - (e.dis ? 1 : 0), st.bonus + coverB) : tAdv && e.dis ? applyMode(st.expr, "dis") : e.dis ? `${st.expr} - 5` : st.expr;
+            if (st.kind === "d20" && coverB) expr += ` + ${coverB}`;
+            sr = roll1(expr);
+            saved = sr.total >= dc;
+          }
+        }
+        const why = [e.autoFail ? `falha sozinho (${e.autoFail})` : "", e.dis ? `desvantagem (${e.dis})` : "", coverB ? COVER_LABEL[cov] : ""].filter(Boolean);
+        const taken = saved ? (action.half ? Math.floor(raw / 2) : 0) : raw;
+        const result = `${f.name}: ${saved ? "passou" : "falhou"} na resistência${why.length ? ` (${why.join(", ")})` : ""}${dr ? ` → ${hurt(f, taken)}` : ""}`;
+        if (sr) this.post({ ...who, kind: "roll", roll: sr, label: result, whisper });
+        else this.post({ ...who, kind: "system", text: result, whisper });
+      }
+    } catch (err) {
+      if (err instanceof DiceError) throw new Error(`Rolagem inválida: ${err.message}`);
+      throw err;
+    } finally {
+      this.changed();
+    }
+  }
+
+  /** Consumível (poção, medpac…): rola o efeito aqui, restaura o recurso até o máximo e gasta 1 da linha. */
+  private consume(client: Client, msg: Extract<C2S, { t: "consume" }>) {
+    const ch = this.c.characters[String(msg.characterId)];
+    if (!ch) return;
+    if (!this.controls(client, ch.controlledBy)) throw new Error("Essa ficha não é sua.");
+    const t = findTemplate(ch.template, this.c.templates);
+    const list = fieldIndex(t).get(String(msg.list));
+    const col = list?.type === "list" ? list.columns?.find((c) => c.type === "roll" && c.consume) : undefined;
+    const row = (ch.data[String(msg.list)] as Record<string, unknown>[] | undefined)?.[Math.trunc(Number(msg.row))];
+    if (!col || !row || typeof row !== "object") throw new Error("Item não encontrado na ficha.");
+    const name = String(row.name || "Item");
+    const counted = String(row.qtd ?? "").trim() !== "";
+    if (counted && Number(row.qtd) <= 0) throw new Error(`${name}: acabou.`);
+    if (!String(row.efeito ?? "").trim() && /@\{\.efeito\}/.test(col.roll ?? "")) throw new Error(`${name} não tem efeito (ex.: 2d4+2 ou 10).`);
+    // recurso escrito na linha; sem nada, poção "de mana" enche mana e o resto, PV
+    const wanted = String(row.recurso ?? "").trim() || (/\b(mana|pm|pe|magia)\b/i.test(name) ? "mana" : "PV");
+    const field = resourceField(t, wanted);
+    if (!field) throw new Error(`A ficha de ${ch.name} não tem ${wanted}.`);
+    // "Uso": turno inteiro / ação bônus só na vez do personagem (com a iniciativa aberta); livre, quando quiser
+    const uso = String(row.uso ?? "").trim() || "Turno inteiro";
+    const timing = itemTiming(row.uso);
+    const self = this.fighter({ characterId: ch.id })!;
+    if (client.role !== "gm" && timing !== "free") {
+      const turn = this.turnError(self);
+      if (turn) throw new Error(`${turn} ${name} (${uso}) só pode ser usado na sua vez.`);
+      const spent = this.spentError(self);
+      if (spent) throw new Error(spent);
+    }
+    try {
+      const r = roll(expand(t, ch.data, col.roll ?? "0", row).slice(0, 200), rng);
+      const cur = Number(ch.data[field] ?? 0) || 0;
+      const max = Number(ch.data[`${field}_max`]);
+      const capped = Number.isFinite(max) && max > 0;
+      const next = Math.max(0, capped ? Math.min(Math.max(max, cur), cur + Math.round(r.total)) : cur + Math.round(r.total));
+      ch.data[field] = next;
+      if (counted) row.qtd = Number(row.qtd) - 1;
+      this.push("characters", ch.id);
+      if (field === "hp") this.syncBars(ch.id);
+      const res = resourceLabel(t, field);
+      const gained = next - cur;
+      const full = capped && Math.round(r.total) > gained ? " — chegou ao máximo" : "";
+      // turno inteiro na vez dele: marca o turno como gasto (não ataca mais até a próxima vez)
+      const turns = this.settings.turns;
+      const entry = turns.open ? turns.entries[turns.current] : undefined;
+      if (timing === "turn" && entry && !this.turnError(self)) {
+        turns.spent = { at: `${turns.round}:${entry.id}`, what: name };
+        this.push("settings", "main");
+      }
+      this.post({
+        ...this.identity(client, ch.id), kind: "roll", roll: r, whisper: msg.secret ? ["gm"] : undefined,
+        label: `${ch.name} usou ${name}: ${gained >= 0 ? "+" : ""}${gained} ${res} (${next}${capped ? `/${max}` : ""})${full}${counted ? ` · restam ${row.qtd}` : ""} · ${uso}`,
+      });
+    } catch (err) {
+      if (err instanceof DiceError) throw new Error(`Efeito inválido em ${name}: ${err.message}`);
+      throw err;
+    }
   }
 
   /** Ao levar os jogadores para uma página com trilha, toca a trilha (e para o resto, se pedido). */

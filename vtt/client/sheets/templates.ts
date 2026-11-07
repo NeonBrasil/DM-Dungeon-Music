@@ -4,6 +4,26 @@ import type { SheetField, SheetSection, SheetTemplate } from "../../shared/types
 
 const F = (type: SheetField["type"], id: string, label: string, extra: Partial<SheetField> = {}): SheetField => ({ type, id, label, ...extra });
 const notes = (id: string, label: string): SheetField => F("textarea", id, label, { span: 99 });
+// Colunas das listas de ataque usadas no combate: alcance ("1,5 m", "24/96 m", "Curto"…) e quantidade
+// (munição, granadas: cada uso gasta 1; vazio = sem controle).
+const ALCANCE = F("text", "alcance", "Alcance", { default: "1,5 m" });
+const QTD = F("number", "qtd", "Qtd");
+// Poções, medpacs, rações…: "Consumir" gasta 1 e o servidor rola o efeito (dado ou número) e restaura o recurso
+// escrito em "Recupera" (PV, Mana, PM, PE…) até o máximo. "Uso" fica sempre à vista: com a iniciativa aberta,
+// "Turno inteiro" só na sua vez e encerra os ataques do turno; "Ação bônus" só na sua vez; "Livre"/"Reação", quando quiser.
+const CONSUMIVEIS: SheetSection = {
+  title: "Consumíveis",
+  fields: [
+    F("list", "consumiveis", "Consumíveis", {
+      span: 99,
+      columns: [
+        F("text", "name", "Item"), F("number", "qtd", "Qtd", { default: 1 }), F("text", "efeito", "Efeito", { default: "2d4+2" }),
+        F("text", "recurso", "Recupera", { default: "PV" }), F("text", "uso", "Uso", { default: "Turno inteiro", hint: "Turno inteiro" }), // em branco vale turno inteiro
+        F("roll", "r_usar", "Consumir", { roll: "@{.efeito}", consume: true }),
+      ],
+    }),
+  ],
+};
 
 // ─── Base D20 (D&D 5e e SW5e) ────────────────────────────────────────────────
 
@@ -59,6 +79,7 @@ function d20Sections(opts: { identity: SheetField[]; skills: [string, string, st
             F("text", "atk", "Acerto", { default: "@{str_mod} + @{pb}" }),
             F("text", "dmg", "Dano", { default: "1d8 + @{str_mod}" }),
             F("text", "kind", "Tipo"),
+            ALCANCE, QTD,
             F("roll", "r_atk", "Ataque", { roll: "1d20 + @{.atk}" }),
             F("roll", "r_dmg", "Dano", { roll: "@{.dmg}" }),
           ],
@@ -88,7 +109,7 @@ const SW_SKILLS: [string, string, string][] = [
 const spellList = (id: string, label: string): SheetField =>
   F("list", id, label, {
     span: 99,
-    columns: [F("text", "name", "Nome"), F("number", "level", "Nível"), F("text", "dmg", "Efeito / dano"), F("text", "notes", "Notas"), F("roll", "r", "Rolar", { roll: "@{.dmg}" })],
+    columns: [F("text", "name", "Nome"), F("number", "level", "Nível"), F("text", "alcance", "Alcance"), F("text", "dmg", "Efeito / dano"), F("text", "notes", "Notas"), F("roll", "r", "Rolar", { roll: "@{.dmg}" })],
   });
 
 const slots = Array.from({ length: 9 }, (_, i) => F("resource", `slot${i + 1}`, `Espaços ${i + 1}º`, { default: 0 }));
@@ -113,6 +134,7 @@ export const DND5E: SheetTemplate = {
           spellList("spells", "Magias"),
         ],
       },
+      CONSUMIVEIS,
       { title: "Equipamento e moedas", columns: 5, fields: [F("number", "cp", "PC"), F("number", "sp", "PP"), F("number", "ep", "PE"), F("number", "gp", "PO"), F("number", "pp", "PL"), notes("equipment", "Equipamento")] },
       { title: "Características", fields: [notes("features", "Características e talentos"), notes("traits", "Personalidade, ideais, vínculos e defeitos"), notes("notes", "Anotações")] },
     ],
@@ -144,6 +166,7 @@ export const SW5E: SheetTemplate = {
           spellList("tech_powers", "Poderes tecnológicos"),
         ],
       },
+      CONSUMIVEIS,
       { title: "Equipamento", fields: [notes("equipment", "Equipamento e nave"), notes("features", "Características e talentos"), notes("notes", "Anotações")] },
     ],
   }),
@@ -188,6 +211,8 @@ export const SWCW: SheetTemplate = {
         F("resource", "hp", "Pontos de vida", { default: 10 }),
         F("number", "ca", "Classe de armadura", { default: 10 }),
         F("computed", "init", "Iniciativa", { formula: "@{des_mod}", roll: "1d20 + @{init}", tracker: true }),
+        // limite dos poderes da Força (Jedi): cada poder gasta pontos iguais ao nível, como mana
+        F("resource", "force_points", "Pontos de Força", { default: 0 }),
         F("text", "deslocamento", "Deslocamento", { default: "9 m" }),
       ],
     },
@@ -202,7 +227,7 @@ export const SWCW: SheetTemplate = {
         F("list", "armas", "Armas", {
           span: 99,
           columns: [
-            F("text", "name", "Arma"), F("text", "atk", "Acerto", { default: "@{atk_blaster}" }), F("text", "dmg", "Dano"), F("text", "kind", "Tipo"),
+            F("text", "name", "Arma"), F("text", "atk", "Acerto", { default: "@{atk_blaster}" }), F("text", "dmg", "Dano"), F("text", "kind", "Tipo"), ALCANCE, QTD,
             F("roll", "r_atk", "Ataque", { roll: "1d20 + @{.atk}" }), F("roll", "r_dmg", "Dano", { roll: "@{.dmg}" }),
           ],
         }),
@@ -217,6 +242,7 @@ export const SWCW: SheetTemplate = {
       ],
     },
     { title: "Poderes da Força", fields: [spellList("poderes", "Poderes")] },
+    CONSUMIVEIS,
     {
       title: "Equipamento e história",
       fields: [
@@ -224,6 +250,101 @@ export const SWCW: SheetTemplate = {
         notes("personalidade", "Personalidade"), notes("background", "História (background)"), notes("objetivos", "Objetivos"), notes("notes", "Anotações"),
       ],
     },
+  ],
+};
+
+// ─── Nightfall ───────────────────────────────────────────────────────────────
+// Ficha montada pelo criador Nightfall (client/nightfall). Atributos na escala do sistema (raça dá a base),
+// testes d20 + mod; @{conj_mod} é gravado pelo criador com o atributo-chave da classe.
+
+const NF_ATTR: [string, string, string][] = [
+  ["for", "FOR", "Força"], ["des", "DES", "Destreza"], ["con", "CON", "Constituição"], ["int", "INT", "Inteligência"],
+  ["sab", "SAB", "Sabedoria"], ["car", "CAR", "Carisma"], ["sor", "SOR", "Sorte"],
+];
+
+export const NIGHTFALL: SheetTemplate = {
+  id: "nightfall",
+  name: "Nightfall",
+  builtin: true,
+  advantage: true,
+  sections: [
+    {
+      title: "Personagem",
+      columns: 4,
+      fields: [
+        F("text", "jogador", "Jogador"), F("text", "raca", "Raça"), F("text", "classe", "Classe"), F("number", "nivel", "Nível", { default: 1 }),
+        F("text", "origem", "Origem"), F("text", "nacao", "Nação"), F("text", "faccao", "Facção"),
+        F("number", "xp", "XP", { default: 0 }), F("text", "alinhamento", "Alinhamento", { default: "Neutro" }), F("text", "antecedente", "Antecedente"),
+        F("computed", "bt", "Bônus de treino", { formula: "2 + floor((@{nivel} - 1) / 4)" }),
+        F("text", "idade", "Idade"), F("text", "peso", "Peso"),
+      ],
+    },
+    { title: "Atributos", columns: 7, fields: NF_ATTR.map(([k, abbr]) => F("attribute", k, abbr, { default: 8, formula: `floor((@{${k}} - 10) / 2)`, roll: `1d20 + @{${k}_mod}` })) },
+    {
+      title: "Combate",
+      columns: 4,
+      fields: [
+        F("resource", "hp", "Pontos de vida", { default: 7 }),
+        F("resource", "mana", "Mana", { default: 0 }),
+        F("resource", "destino", "Destino", { default: 1 }),
+        // *_traits / save_*_extra: vantagens e fraquezas de raça, origem e era (gravados pelo criador)
+        F("computed", "ca", "Classe de armadura", { formula: "10 + @{des_mod} + @{ca_bonus} + @{ca_traits}" }),
+        F("computed", "init", "Iniciativa", { formula: "@{des_mod} + @{init_traits}", roll: "1d20 + @{init}", tracker: true }),
+        F("computed", "atq_hab", "Ataque de habilidade", { formula: "@{bt} + @{conj_mod}", roll: "1d20 + @{atq_hab}" }),
+        F("computed", "cd", "CD das habilidades", { formula: "8 + @{atq_hab}" }),
+        F("number", "ca_bonus", "Bônus de armadura", { default: 0 }),
+        F("text", "deslocamento", "Deslocamento", { default: "9 m" }),
+        F("text", "morte", "Testes contra a morte", { default: "✓ 0 / ✗ 0" }),
+      ],
+    },
+    {
+      title: "Resistências",
+      columns: 2,
+      fields: NF_ATTR.map(([k, abbr, name]) => F("skill", `save_${k}`, name, {
+        ability: abbr, formula: `@{${k}_mod} + @{bt} * @{save_${k}_prof} + @{save_${k}_extra}`, roll: `1d20 + @{save_${k}}`,
+      })),
+    },
+    {
+      title: "Habilidades",
+      fields: [
+        F("list", "habilidades", "Habilidades", {
+          span: 99,
+          columns: [
+            F("text", "name", "Habilidade"), F("text", "custo", "Custo"), F("textarea", "efeito", "Efeito"), F("text", "teste", "Teste"), F("text", "dano", "Dano / cura"),
+            F("roll", "r_teste", "Teste", { roll: "@{.teste}" }), F("roll", "r_dano", "Dano", { roll: "@{.dano}" }),
+          ],
+        }),
+      ],
+    },
+    {
+      title: "Ataques",
+      fields: [
+        F("list", "attacks", "Ataques", {
+          span: 99,
+          columns: [
+            F("text", "name", "Nome"), F("text", "atk", "Acerto", { default: "@{for_mod} + @{bt}" }), F("text", "dmg", "Dano", { default: "1d6 + @{for_mod}" }),
+            F("text", "kind", "Tipo"), ALCANCE, QTD, F("roll", "r_atk", "Ataque", { roll: "1d20 + @{.atk}" }), F("roll", "r_dmg", "Dano", { roll: "@{.dmg}" }),
+          ],
+        }),
+      ],
+    },
+    {
+      title: "Cicatrizes",
+      fields: [
+        F("roll", "r_cicatriz", "Rolar na tabela de cicatrizes (d20)", { roll: "1d20" }),
+        F("list", "cicatrizes", "Cicatrizes", { span: 99, columns: [F("text", "name", "Cicatriz"), F("textarea", "efeito", "Efeito")] }),
+      ],
+    },
+    {
+      title: "Raça e origem",
+      fields: [
+        notes("tracos_raca", "Vantagens raciais"), notes("fraquezas_raca", "Fraquezas raciais"),
+        notes("tracos_origem", "Origem e era (vantagens + e fraquezas −)"), notes("fraquezas", "Outras fraquezas"),
+      ],
+    },
+    CONSUMIVEIS,
+    { title: "Bagagem", fields: [notes("inventario", "Inventário"), notes("magias", "Magias e anotações de poder")] },
+    { title: "Persona e história", fields: [notes("ideais", "Ideais"), notes("tracos", "Traços de personalidade"), notes("historia", "História"), notes("notes", "Anotações")] },
   ],
 };
 
@@ -290,6 +411,7 @@ export const COC7E: SheetTemplate = {
             F("text", "dmg", "Dano", { default: "1d3 + @{db}" }),
             F("text", "range", "Alcance"),
             F("text", "attacks", "Ataques"),
+            F("number", "qtd", "Munição"),
             F("roll", "r_hit", "Teste", { check: "coc", roll: "@{.skill}" }),
             F("roll", "r_dmg", "Dano", { roll: "@{.dmg}" }),
           ],
@@ -307,6 +429,7 @@ export const COC7E: SheetTemplate = {
         F("textarea", "tomes", "Tomos, magias e artefatos"), F("textarea", "encounters", "Encontros com entidades estranhas"),
       ],
     },
+    CONSUMIVEIS,
     { title: "Equipamento e dinheiro", columns: 3, fields: [F("text", "spending", "Nível de gastos"), F("text", "cash", "Dinheiro"), F("text", "assets", "Bens"), notes("gear", "Equipamento")] },
   ],
 };
@@ -333,10 +456,11 @@ export const FREE: SheetTemplate = {
       fields: [
         F("list", "attacks", "Ataques", {
           span: 99,
-          columns: [F("text", "name", "Nome"), F("text", "atk", "Acerto", { default: "0" }), F("text", "dmg", "Dano", { default: "1d6" }), F("roll", "r_atk", "Ataque", { roll: "1d20 + @{.atk}" }), F("roll", "r_dmg", "Dano", { roll: "@{.dmg}" })],
+          columns: [F("text", "name", "Nome"), F("text", "atk", "Acerto", { default: "0" }), F("text", "dmg", "Dano", { default: "1d6" }), ALCANCE, QTD, F("roll", "r_atk", "Ataque", { roll: "1d20 + @{.atk}" }), F("roll", "r_dmg", "Dano", { roll: "@{.dmg}" })],
         }),
       ],
     },
+    CONSUMIVEIS,
     { title: "Notas", fields: [notes("inventory", "Inventário"), notes("notes", "Anotações")] },
   ],
 };
@@ -394,7 +518,7 @@ export const ORDEM: SheetTemplate = {
           span: 99,
           columns: [
             F("text", "name", "Arma"), F("number", "attr", "Dados (atrib.)", { default: 1 }), F("number", "bonus", "Bônus", { default: 0 }),
-            F("text", "dmg", "Dano", { default: "1d6" }), F("text", "crit", "Crítico", { default: "19/x2" }), F("text", "alcance", "Alcance"),
+            F("text", "dmg", "Dano", { default: "1d6" }), F("text", "crit", "Crítico", { default: "19/x2" }), F("text", "alcance", "Alcance"), QTD,
             F("roll", "r_hit", "Teste", { check: "op" }), F("roll", "r_dmg", "Dano", { roll: "@{.dmg}" }),
           ],
         }),
@@ -413,6 +537,7 @@ export const ORDEM: SheetTemplate = {
         }),
       ],
     },
+    CONSUMIVEIS,
     { title: "Habilidades e inventário", fields: [notes("habilidades", "Habilidades e poderes"), notes("inventario", "Inventário (carga)"), notes("notes", "Anotações")] },
   ],
 };
@@ -475,7 +600,7 @@ export const T20: SheetTemplate = {
           span: 99,
           columns: [
             F("text", "name", "Arma"), F("text", "teste", "Teste", { default: "@{luta}" }), F("text", "dano", "Dano", { default: "1d8 + @{for}" }),
-            F("text", "critico", "Crítico", { default: "19/x2" }), F("text", "tipo", "Tipo"), F("text", "alcance", "Alcance"),
+            F("text", "critico", "Crítico", { default: "19/x2" }), F("text", "tipo", "Tipo"), F("text", "alcance", "Alcance"), QTD,
             F("roll", "r_atk", "Ataque", { roll: "1d20 + @{.teste}" }), F("roll", "r_dmg", "Dano", { roll: "@{.dano}" }),
           ],
         }),
@@ -495,6 +620,7 @@ export const T20: SheetTemplate = {
         }),
       ],
     },
+    CONSUMIVEIS,
     { title: "Poderes e equipamento", fields: [notes("poderes", "Poderes e habilidades"), notes("equipamento", "Equipamento"), notes("notes", "Anotações")] },
   ],
 };
@@ -557,7 +683,7 @@ export const DND5E_NPC: SheetTemplate = {
 /** Criatura do bestiário Star Wars: mesmos campos da criatura D&D. */
 export const SW5E_NPC: SheetTemplate = { ...DND5E_NPC, id: "sw5e-npc", name: "SW5e — Criatura" };
 
-export const BUILTIN: SheetTemplate[] = [FREE, DND5E, DND5E_NPC, SW5E, SW5E_NPC, SWCW, COC7E, ORDEM, T20];
+export const BUILTIN: SheetTemplate[] = [FREE, DND5E, DND5E_NPC, SW5E, SW5E_NPC, SWCW, NIGHTFALL, COC7E, ORDEM, T20];
 
 export function findTemplate(id: string, custom: Record<string, SheetTemplate>): SheetTemplate {
   return BUILTIN.find((t) => t.id === id) ?? custom[id] ?? FREE;

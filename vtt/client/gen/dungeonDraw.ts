@@ -219,6 +219,15 @@ function drawDoor(ctx: CanvasRenderingContext2D, door: Door, c: number, S: InkSt
     case "open":
       stub(0.16);
       break;
+    case "ajar":
+      // folha da porta girada para dentro, presa na dobradiça
+      stub(0.2);
+      ctx.fillStyle = S.floor;
+      ctx.beginPath();
+      ctx.rect(-c * 0.3, 0, c * 0.12, c * 0.55);
+      ctx.fill();
+      ctx.stroke();
+      break;
     case "portcullis":
       stub(0.16);
       for (let k = -1.5; k <= 1.5; k++) {
@@ -243,6 +252,23 @@ function drawDoor(ctx: CanvasRenderingContext2D, door: Door, c: number, S: InkSt
         ctx.beginPath();
         ctx.arc(0, 0, c * 0.05, 0, Math.PI * 2);
         ctx.fill();
+      } else if (door.type === "magic") {
+        // runa: losango cheio no meio da porta
+        ctx.fillStyle = S.wall;
+        ctx.beginPath();
+        ctx.moveTo(0, -c * 0.1);
+        ctx.lineTo(c * 0.08, 0);
+        ctx.lineTo(0, c * 0.1);
+        ctx.lineTo(-c * 0.08, 0);
+        ctx.closePath();
+        ctx.fill();
+      } else if (door.type === "puzzle") {
+        ctx.rotate(door.horiz ? 0 : -Math.PI / 2);
+        ctx.fillStyle = S.wall;
+        ctx.font = `700 ${c * 0.2}px Georgia, serif`;
+        ctx.textAlign = "center";
+        ctx.textBaseline = "middle";
+        ctx.fillText("?", 0, c * 0.01);
       }
   }
   ctx.restore();
@@ -557,5 +583,8 @@ export function dungeonNotes(d: Dungeon): string {
   }
   const secrets = d.doors.filter((x) => x.type === "secret").length;
   if (secrets) lines.push("", `Portas secretas: ${secrets} (marcadas com S na camada do mestre).`);
+  const magic = d.doors.filter((x) => x.type === "magic").length;
+  const puzzle = d.doors.filter((x) => x.type === "puzzle").length;
+  if (magic || puzzle) lines.push("", `Portas seladas: ${magic} por magia, ${puzzle} por enigma. Só o mestre abre.`);
   return lines.join("\n");
 }

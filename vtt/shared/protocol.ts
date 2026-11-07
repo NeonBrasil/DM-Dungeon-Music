@@ -1,7 +1,12 @@
 // Mensagens WebSocket entre cliente e servidor.
+import type { Resolve, Save } from "./combat.ts";
+import type { RollMode } from "./sheet.ts";
 import type { Colls, CollName, Role } from "./types.ts";
 
-export type DeckOp = "shuffle" | "reset" | "draw" | "drawTable" | "play" | "discard" | "take" | "flip" | "show";
+/** Lutador: um token (o PV vem da ficha vinculada ou da barra) ou uma ficha sem token. */
+export interface FightRef { graphicId?: string; characterId?: string }
+
+export type DeckOp ="shuffle" | "reset" | "draw" | "drawTable" | "play" | "discard" | "take" | "flip" | "show";
 
 export type C2S =
   | { t: "create"; coll: CollName; data: { id: string } & Record<string, unknown> }
@@ -15,6 +20,23 @@ export type C2S =
   | { t: "ping"; pageId: string; x: number; y: number; pull?: boolean }
   | { t: "ruler"; pageId: string; pts: number[] | null }
   | { t: "door"; pageId: string; doorId: string }
+  | {
+    // ataque: o servidor rola contra a CA (ou a resistência do alvo) e, se acertar, o dano já sai do PV.
+    // use = ação da ficha do atacante ("lista:linha"); o servidor recalcula tudo a partir dela.
+    t: "attack"; from: FightRef; to: FightRef; secret?: boolean;
+    use?: string;
+    how?: Resolve;          // como resolver (padrão: pela ação)
+    save?: Save;            // atributo da resistência (how = "save")
+    mode?: RollMode;        // vantagem/desvantagem escolhida à mão (soma às das condições)
+    bonus?: number;         // bônus situacional no teste
+    also?: FightRef[];      // outros alvos na área (resistência ou acerto automático)
+    area?: number;          // raio da área, em unidades da página
+    force?: boolean;        // mestre: ignora alcance, cobertura total, turno e condições que impedem
+    // só mestre: ataque personalizado e CA ajustada à mão
+    label?: string; ca?: number; atk?: string; dmg?: string;
+  }
+  // consumível da ficha (poção, medpac…): o servidor rola o efeito, restaura o recurso e gasta 1
+  | { t: "consume"; characterId: string; list: string; row: number; secret?: boolean }
   | {
     t: "deck"; op: DeckOp; deckId?: string; cardId?: string; graphicId?: string;
     to?: string; pageId?: string; x?: number; y?: number; faceUp?: boolean;

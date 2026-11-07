@@ -23,7 +23,20 @@ import { loadMonsters } from "../compendium/srd.ts";
 import { ensureMonsterSheet } from "../compendium/Compendium.tsx";
 
 const LIVE_SEND_MS = 80;
+const HP_MS = 700;     // barra de PV descendo
+const FLOAT_MS = 1600; // número de dano/cura subindo
 let clipboard: Graphic[] = [];
+
+/** Tipos de porta da mesa: rótulo, cor, campos e como reconhecer. */
+const DOOR_KINDS: [string, string, Partial<DoorSeg>, (d: DoorSeg) => boolean][] = [
+  ["Aberta", "#3dd68c", { open: true }, (d) => d.open && !d.seeThrough],
+  ["Fechada", "#e0902f", {}, (d) => !d.open && !d.locked && !d.seal && !d.secret && !d.seeThrough],
+  ["Trancada", "#e5484d", { locked: true }, (d) => !!d.locked && !d.seal],
+  ["Selada por magia", "#a855f7", { seal: "magic" }, (d) => d.seal === "magic"],
+  ["Enigma", "#ec4899", { seal: "puzzle" }, (d) => d.seal === "puzzle"],
+  ["Secreta", "#64748b", { secret: true }, (d) => !!d.secret],
+  ["Grade", "#38bdf8", { seeThrough: true }, (d) => !!d.seeThrough],
+];
 
 type Snap = Record<string, unknown> | null;
 type Drag =
@@ -121,6 +134,7 @@ export function Board() {
   const weatherRef = useRef<HTMLCanvasElement>(null);
   const wrapRef = useRef<HTMLDivElement>(null);
   const view = useRef<View>({ x: 0, y: 0, zoom: 1 });
+  const unseen = useRef<Set<string> | null>(null); // tokens no escuro para o jogador (não dá para mirar neles)
   const views = useRef(new Map<string, View>());
   const size = useRef({ w: 0, h: 0, dpr: 1 });
   const dirty = useRef(true);
@@ -142,6 +156,10 @@ export function Board() {
   const lastTap = useRef<{ t: number; sx: number; sy: number } | null>(null);
   const darknessCanvas = useRef<HTMLCanvasElement | null>(null);
   const weather = useRef<Weather | null>(null);
+  // PV que muda (luta, ficha ou barra): a barra desce animada e o número sobe sobre o token
+  const hpSeen = useRef({ pageId: "", values: new Map<string, number>() });
+  const hpAnim = useRef(new Map<string, { from: number; to: number; t0: number }>());
+  const floats = useRef<{ id: string; delta: number; t0: number }[]>([]);
 
   // Últimos valores para o laço de desenho e os handlers nativos
   const latest = useRef({ page, pageGraphics, players, gm, playerId, selected, layer, settings, decks, showWalls, lightPreview, tool, campaignId });
@@ -149,6 +167,22 @@ export function Board() {
   useEffect(() => {
     dirty.current = true;
   });
+
+  useEffect(() => {
+    const seen = hpSeen.current;
+    const fresh = seen.pageId !== (page?.id ?? "");
+    if (fresh) seen.values.clear();
+    seen.pageId = page?.id ?? "";
+    const now = performance.now();
+    for (const g of pageGraphics) {
+      if (!g.bar) continue;
+      const prev = seen.values.get(g.id);
+      seen.values.set(g.id, g.bar.value);
+      if (fresh || prev === undefined || prev === g.bar.value) continue;
+      floats.current.push({ id: g.id, delta: g.bar.value - prev, t0: now });
+      hpAnim.current.set(g.id, { from: animatedHp(g.id, prev, now), to: g.bar.value, t0: now });
+    }
+  }, [page?.id, pageGraphics]);
 
   // ─── Ajuste de visão ─────────────────────────────────────────────────────
 
@@ -236,7 +270,12 @@ export function Board() {
       if (!dirty.current && !animating) return;
       dirty.current = false;
       const now = performance.now();
-      const list = L.pageGraphics.map((g) => effective(g, now));
+      floats.current = floats.current.filter((x) => now - x.t0 < FLOAT_MS);
+      for (const [id, an] of hpAnim.current) if (now - an.t0 >= HP_MS) hpAnim.current.delete(id); // token sumiu no meio
+      const list = L.pageGraphics.map((g) => {
+        const e = effective(g, now);
+        return e.bar && hpAnim.current.has(g.id) ? { ...e, bar: { ...e.bar, value: animatedHp(g.id, e.bar.value, now) } } : e;
+      });
       const f = fog.current;
       if (L.page.fogOn && !f.canvas) f.canvas = buildFogCanvas(f.cells, L.page.cols, L.page.rows);
       pings.current = pings.current.filter((p) => now - p.t0 < 1700);
@@ -247,6 +286,7 @@ export function Board() {
       let hidden: Set<string> | null = null;
       let doorVisible: ((d: DoorSeg) => boolean) | null = null;
       let missing = false;
+      unseen.current = null;
       if (L.page.light?.on) {
         const mine = (g: Graphic) => g.kind === "token" && !!g.vision?.on && (L.gm ? L.selected.includes(g.id) : canControl(g.controlledBy) && g.layer === "tokens");
         // jogador: visão pela posição confirmada (o arrasto não pode espiar através de paredes)
@@ -265,6 +305,7 @@ export function Board() {
           if (!L.gm) {
             const s = state;
             hidden = new Set(list.filter((g) => (g.kind === "token" || g.kind === "card") && !canControl(g.controlledBy) && !isLit(s, g.x + g.w / 2, g.y + g.h / 2)).map((g) => g.id));
+            unseen.current = hidden;
             doorVisible = (d) => {
               const mx = (d.x1 + d.x2) / 2;
               const my = (d.y1 + d.y2) / 2;
@@ -306,7 +347,8 @@ export function Board() {
         marquee: marquee.current,
         draft: draft.current,
         wallDraft: wd,
-      }, now);
+        floats: floats.current.map((x) => ({ id: x.id, delta: x.delta, t: (now - x.t0) / FLOAT_MS })),
+      }, now) || floats.current.length > 0 || hpAnim.current.size > 0;
     };
     raf = requestAnimationFrame(loop);
 
@@ -350,6 +392,18 @@ export function Board() {
   }, []);
 
   /** Posição exibida: arrasto local ou valor enviado aguardando confirmação do servidor. */
+  /** Valor da barra durante a animação (desacelera no fim); sem animação, o valor dado. */
+  function animatedHp(id: string, value: number, now: number): number {
+    const an = hpAnim.current.get(id);
+    if (!an) return value;
+    const t = (now - an.t0) / HP_MS;
+    if (t >= 1) {
+      hpAnim.current.delete(id);
+      return an.to;
+    }
+    return an.from + (an.to - an.from) * (1 - (1 - t) ** 3);
+  }
+
   function effective(g: Graphic, now: number): Graphic {
     const o = overrides.current.get(g.id);
     if (o) return { ...g, ...o };
@@ -968,14 +1022,35 @@ export function Board() {
 
   function openMenu(cx: number, cy: number, wx: number, wy: number) {
     const L = latest.current;
-    const g = hitTest(wx, wy);
+    const r = canvasRef.current!.getBoundingClientRect();
+    const door = L.gm && L.page ? doorAt(cx - r.left, cy - r.top) : null;
+    if (door && L.page) {
+      setMenu({ x: cx, y: cy, items: doorMenu(L.page, door) });
+      return;
+    }
+    // jogador: além dos próprios tokens, o botão direito alcança qualquer token visível (para atacar)
+    const any = L.gm ? null : hitTest(wx, wy, true);
+    const g = hitTest(wx, wy) ?? (any?.kind === "token" && any.layer === "tokens" && !unseen.current?.has(any.id) ? any : null);
     const place: MenuItem = { label: "Adicionar local aqui", icon: "map", onClick: () => setPlaceAt({ x: wx, y: wy }) };
     if (!g) {
       if (L.gm && L.page) setMenu({ x: cx, y: cy, items: [place] });
       return;
     }
-    ui.set({ selected: [g.id] });
+    // botão direito num token já selecionado mantém a seleção (para preparar luta entre dois)
+    const sel = L.selected.includes(g.id) ? L.selected : [g.id];
+    if (L.gm || canControl(g.controlledBy)) ui.set({ selected: sel });
     const items: MenuItem[] = [];
+    if (g.kind === "token" && (L.gm || !canControl(g.controlledBy))) {
+      // quem ataca: o outro token selecionado (meu, se for jogador)
+      const from = L.selected.find((id) => id !== g.id && L.pageGraphics.some((x) => x.id === id && x.kind === "token"));
+      items.push({ label: "Atacar…", icon: "swords", onClick: () => ui.set({ attack: { target: g.id, from } }) });
+    }
+    if (L.gm && g.kind === "token") {
+      const pair = sel.filter((id) => L.pageGraphics.find((x) => x.id === id)?.kind === "token");
+      items.push(pair.length === 2
+        ? { label: "Preparar luta entre os dois", icon: "swords", onClick: () => ui.set({ fight: { a: pair[0], b: pair[1] } }) }
+        : { label: "Preparar luta…", icon: "swords", onClick: () => ui.set({ fight: { a: g.id } }) });
+    }
     if (g.characterId && game.get().colls.characters[g.characterId]) {
       items.push({ label: "Abrir ficha", icon: "book", onClick: () => openSheet(g.characterId!) });
     }
@@ -1018,6 +1093,21 @@ export function Board() {
       place,
     );
     setMenu({ x: cx, y: cy, items });
+  }
+
+  /** Mestre: botão direito na porta troca o tipo (cores iguais às do editor de masmorra). */
+  function doorMenu(p: Page, d: DoorSeg): MenuItem[] {
+    const current = DOOR_KINDS.find(([, , , is]) => is(d))?.[0];
+    const set = (patch: Partial<DoorSeg> | null) => act.update("pages", p.id, {
+      doors: patch
+        ? (p.doors ?? []).map((x) => (x.id === d.id ? { id: x.id, x1: x.x1, y1: x.y1, x2: x.x2, y2: x.y2, open: false, ...patch } : x))
+        : (p.doors ?? []).filter((x) => x.id !== d.id),
+    });
+    return [
+      ...DOOR_KINDS.map(([label, swatch, patch]): MenuItem => ({ label: label === current ? `${label} ✓` : label, swatch, onClick: () => set(patch) })),
+      "sep",
+      { label: "Excluir porta", icon: "trash", danger: true, onClick: () => set(null) },
+    ];
   }
 
   function addToTurns(g: Graphic) {

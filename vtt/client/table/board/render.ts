@@ -33,6 +33,7 @@ export interface Scene {
   marquee: { x0: number; y0: number; x1: number; y1: number } | null;
   draft: Graphic | null;           // desenho/molde sendo criado
   wallDraft: number[] | null;      // polilinha de paredes em andamento (mundo)
+  floats: { id: string; delta: number; t: number }[]; // dano/cura subindo sobre o token (t: 0 → 1 ao longo da animação)
 }
 
 const LAYER_ORDER: Record<Layer, number> = { map: 0, tokens: 1, gm: 2 };
@@ -365,6 +366,15 @@ function label(ctx: CanvasRenderingContext2D, text: string, x: number, y: number
   ctx.restore();
 }
 
+/** Aberta verde, fechada laranja, trancada vermelha, selada por magia roxa, enigma rosa, secreta cinza. */
+export function doorColor(d: DoorSeg): string {
+  if (d.open) return "rgba(61,214,140,0.55)";
+  if (d.secret) return "#64748b";
+  if (d.seal === "magic") return "#a855f7";
+  if (d.seal === "puzzle") return "#ec4899";
+  return d.locked ? "#e5484d" : "#e0902f";
+}
+
 function drawDoors(ctx: CanvasRenderingContext2D, scene: Scene, z: number) {
   for (const d of scene.page.doors ?? []) {
     const mx = (d.x1 + d.x2) / 2;
@@ -376,7 +386,7 @@ function drawDoors(ctx: CanvasRenderingContext2D, scene: Scene, z: number) {
     ctx.translate(mx, my);
     ctx.rotate(ang);
     // segmento da porta
-    ctx.strokeStyle = d.open ? "rgba(61,214,140,0.55)" : d.secret ? "#9b59b6" : d.locked ? "#e5484d" : "#e0902f";
+    ctx.strokeStyle = doorColor(d);
     ctx.lineWidth = Math.max(3 / z, scene.page.gridSize * 0.06);
     ctx.setLineDash(d.open ? [6 / z, 6 / z] : []);
     ctx.beginPath();
@@ -396,7 +406,7 @@ function drawDoors(ctx: CanvasRenderingContext2D, scene: Scene, z: number) {
     ctx.font = `${r * 1.15}px ${EMOJI_FONT}`;
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
-    ctx.fillText(d.locked && !d.open ? "🔒" : d.open ? "🚪" : d.secret ? "❔" : "🚪", 0, r * 0.08);
+    ctx.fillText(d.open ? "🚪" : d.seal === "magic" ? "✨" : d.seal === "puzzle" ? "🧩" : d.locked ? "🔒" : d.secret ? "❔" : "🚪", 0, r * 0.08);
     ctx.restore();
   }
 }
@@ -530,6 +540,28 @@ export function drawScene(
       ctx.fillStyle = ACCENT;
       ctx.fillRect(g.x + g.w - hs / 2, g.y + g.h - hs / 2, hs, hs);
     }
+    ctx.restore();
+  }
+
+  // Dano/cura: número sobe do token e some (só onde o token aparece para quem olha)
+  for (const f of scene.floats) {
+    const g = scene.graphics.find((x) => x.id === f.id);
+    if (!g || (!scene.gm && (g.layer === "gm" || !showOnTable(g)))) continue;
+    const t = f.t;
+    const pop = t < 0.12 ? 0.6 + (t / 0.12) * 0.6 : 1.2 - Math.min(0.2, (t - 0.12) * 0.5);
+    const fs = Math.max(20 / z, g.h * 0.42) * pop;
+    ctx.save();
+    ctx.globalAlpha = t < 0.6 ? 1 : Math.max(0, 1 - (t - 0.6) / 0.4);
+    ctx.font = `800 ${fs}px system-ui, sans-serif`;
+    ctx.textAlign = "center";
+    ctx.textBaseline = "bottom";
+    ctx.lineWidth = fs * 0.16;
+    ctx.strokeStyle = "rgba(0,0,0,0.85)";
+    ctx.fillStyle = f.delta < 0 ? "#ff5a4f" : "#3dd68c";
+    const text = f.delta > 0 ? `+${f.delta}` : String(f.delta);
+    const y = g.y - 8 / z - t * Math.max(46 / z, g.h * 0.7);
+    ctx.strokeText(text, g.x + g.w / 2, y);
+    ctx.fillText(text, g.x + g.w / 2, y);
     ctx.restore();
   }
 

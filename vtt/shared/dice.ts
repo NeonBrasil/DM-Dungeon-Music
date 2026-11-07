@@ -236,6 +236,17 @@ export function roll(expr: string, rng: Rng): RollResult {
 }
 
 /** Avalia fórmula sem dados (campos calculados das fichas). */
+/**
+ * Ataque contra a CA do alvo: só acerta se o total alcançar a CA — um 20 natural não passa por cima de CA alta
+ * (CA 22 exige 22). 1 natural sempre erra. Crítico = 20 natural que também acertou.
+ */
+export function attackOutcome(r: RollResult, ca: number): { hit: boolean; crit: boolean; nat?: number } {
+  const d20 = r.segs.find((s) => s.k === "dice" && s.sides === 20);
+  const nat = d20 && d20.k === "dice" ? d20.rolls.find((x) => !x.drop)?.v : undefined;
+  const hit = nat !== 1 && r.total >= ca;
+  return { hit, crit: hit && nat === 20, nat };
+}
+
 export function evaluate(expr: string, ref: (name: string) => number): number {
   const v = ev(parse(expr), { ref, segs: [], dice: 0 });
   return Number.isFinite(v) ? round2(v) : 0;

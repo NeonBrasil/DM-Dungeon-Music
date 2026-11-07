@@ -2,6 +2,8 @@
 // D&D 5e vem do SRD 5.1 (scripts/build-srd.ts); Star Wars é escrito à mão neste diretório.
 import fs from "node:fs";
 import path from "node:path";
+import type { Item } from "../../shared/compendium.ts";
+import { DND_POTIONS, SRD_USE } from "./potions.ts";
 import { SW_BESTIARY } from "./sw-bestiary.ts";
 import { SW_ITEMS } from "./sw-items.ts";
 
@@ -9,7 +11,11 @@ const file = (name: string) => () => fs.readFileSync(path.join(import.meta.dirna
 
 const SOURCES: Record<string, () => string> = {
   "bestiary-dnd": file("bestiary-dnd.json"),
-  "items-dnd": file("items-dnd.json"),
+  // SRD + efeito das poções de cura + poções desta mesa (cura e mana)
+  "items-dnd": () => JSON.stringify([
+    ...(JSON.parse(file("items-dnd.json")()) as Item[]).map((it) => (SRD_USE[it.id] ? { ...it, use: SRD_USE[it.id] } : it)),
+    ...DND_POTIONS,
+  ]),
   "bestiary-sw": () => JSON.stringify(SW_BESTIARY),
   "items-sw": () => JSON.stringify(SW_ITEMS),
 };

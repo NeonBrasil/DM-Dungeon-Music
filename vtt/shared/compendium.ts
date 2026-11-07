@@ -29,4 +29,5 @@ export interface Item {
   ac?: string;           // armadura / escudo
   rarity?: string;
   desc?: string;
+  use?: { expr: string; res: string; turn: string }; // consumível: efeito (dado ou número), recurso ("PV", "Mana") e uso ("Turno inteiro", "Ação bônus"…)
 }

@@ -1,7 +1,7 @@
 import { useEffect, useRef } from "react";
 import { Icon } from "./Icon.tsx";
 
-export type MenuItem = { label: string; icon?: string; danger?: boolean; onClick: () => void } | "sep";
+export type MenuItem = { label: string; icon?: string; swatch?: string; danger?: boolean; onClick: () => void } | "sep";
 
 export function ContextMenu({ x, y, items, onClose }: { x: number; y: number; items: MenuItem[]; onClose: () => void }) {
   const ref = useRef<HTMLDivElement>(null);
@@ -37,6 +37,7 @@ export function ContextMenu({ x, y, items, onClose }: { x: number; y: number; it
             }}
           >
             {it.icon && <Icon name={it.icon} size={15} />}
+            {it.swatch && <i className="menu-swatch" style={{ background: it.swatch }} />}
             {it.label}
           </button>
         ),

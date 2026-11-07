@@ -1,7 +1,7 @@
 // Janela de ficha: desenha qualquer modelo (prontos ou do mestre) a partir dos campos.
 import { useMemo, useRef, useState } from "react";
 import type { Character, SheetField, SheetTemplate } from "../../shared/types.ts";
-import { api, game, useColl } from "../game.ts";
+import { api, game, send, useColl } from "../game.ts";
 import { closeSheet, canControl, ui } from "../table/ui.ts";
 import { EditField } from "../ui/EditField.tsx";
 import { Icon } from "../ui/Icon.tsx";
@@ -72,6 +72,11 @@ export function SheetWindow({ id }: { id: string }) {
           <button className={`icon-btn small ${secret ? "active" : ""}`} title="Rolagens secretas (só você e o mestre)" onClick={() => setSecret(!secret)}>
             <Icon name="eyeOff" size={15} />
           </button>
+          {t.id === "nightfall" && editable && (
+            <button className="btn small" title="Abrir no criador Nightfall (subir de nível, trocar classe, cicatrizes…)" onClick={() => ui.set({ nightfall: { id } })}>
+              <Icon name="wand" size={14} /> Criador
+            </button>
+          )}
           <button className="icon-btn small" title="Exportar ficha (arquivo)" onClick={() => exportCharacter(ch, t)}>
             <Icon name="download" size={15} />
           </button>
@@ -350,7 +355,10 @@ function ListField({ f, rows, t, ch, ctx, editable, cocMod, onChange }: {
                     <EditField
                       className="input small"
                       type={c.type === "number" ? "number" : "text"}
+                      multiline={c.type === "textarea"}
+                      rows={c.type === "textarea" ? 2 : undefined}
                       value={r[c.id!] as string}
+                      placeholder={c.hint}
                       readOnly={!editable}
                       title={typeof r[c.id!] === "string" && String(r[c.id!]).includes("@{") ? expand(t, ch.data, String(r[c.id!]), r) : undefined}
                       onCommit={(v) => edit(i, c.id!, c.type === "number" ? Number(v) || 0 : v)}
@@ -360,22 +368,37 @@ function ListField({ f, rows, t, ch, ctx, editable, cocMod, onChange }: {
               ))}
               {rollCols.length > 0 && (
                 <td className="row" style={{ gap: 3 }}>
-                  {rollCols.map((c) => (
-                    <button
-                      key={c.id}
-                      className="btn small"
-                      onClick={() => {
-                        const name = String(r.name || f.label || "");
-                        const lbl = `${name} — ${c.label}`;
-                        const calcRow = resolver(t, ch.data, r);
-                        if (c.check === "coc") rollCoc(ctx, calcRow.safeEval(c.roll ?? "0"), lbl, cocMod);
-                        else if (c.check === "op") rollOp(ctx, calcRow.safeEval("@{.attr}"), calcRow.safeEval("@{.bonus}"), lbl);
-                        else rollFormula(ctx, c.roll ?? "0", lbl, r);
-                      }}
-                    >
-                      {c.label}
-                    </button>
-                  ))}
+                  {rollCols.map((c) => {
+                    // rolagem que é só uma coluna da linha (ex.: "@{.dano}") some quando a coluna está vazia
+                    const only = /^@\{\.(\w+)\}$/.exec(c.roll ?? "")?.[1];
+                    if (only && !String(r[only] ?? "").trim()) return null;
+                    if (c.consume) {
+                      // o servidor rola o efeito, restaura o recurso e gasta 1
+                      const out = String(r.qtd ?? "").trim() !== "" && Number(r.qtd) <= 0;
+                      return (
+                        <button key={c.id} className="btn small primary" disabled={out} title={out ? "Acabou" : `Rolar ${String(r[only ?? ""] ?? "")} e recuperar · ${String(r.uso ?? "").trim() || "Turno inteiro"}`}
+                          onClick={() => send({ t: "consume", characterId: ch.id, list: f.id!, row: i, secret: ctx.secret })}>
+                          {c.label}
+                        </button>
+                      );
+                    }
+                    return (
+                      <button
+                        key={c.id}
+                        className="btn small"
+                        onClick={() => {
+                          const name = String(r.name || f.label || "");
+                          const lbl = `${name} — ${c.label}`;
+                          const calcRow = resolver(t, ch.data, r);
+                          if (c.check === "coc") rollCoc(ctx, calcRow.safeEval(c.roll ?? "0"), lbl, cocMod);
+                          else if (c.check === "op") rollOp(ctx, calcRow.safeEval("@{.attr}"), calcRow.safeEval("@{.bonus}"), lbl);
+                          else rollFormula(ctx, c.roll ?? "0", lbl, r);
+                        }}
+                      >
+                        {c.label}
+                      </button>
+                    );
+                  })}
                 </td>
               )}
               {editable && (

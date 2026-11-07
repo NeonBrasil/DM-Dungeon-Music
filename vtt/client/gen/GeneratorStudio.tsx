@@ -3,6 +3,8 @@
 import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import type { WorldLink } from "../../shared/types.ts";
 import { Icon } from "../ui/Icon.tsx";
+import type { Dungeon } from "./dungeon.ts";
+import { useDungeonEditor, type EditorLayer } from "./DungeonEditor.tsx";
 import { randomSeed } from "./rng.ts";
 import type { Built, GenKind } from "./types.ts";
 import { KINDS, type KindDef } from "./kinds.ts";
@@ -59,7 +61,8 @@ export function GeneratorStudio({ onClose, onSend, initial, preset, from }: {
     ? Object.fromEntries(Object.entries(place.params).filter(([k]) => NAME_KEYS.includes(k)))
     : {};
 
-  const built = useMemo<Built | null>(() => {
+  const genKey = `${kind.id}:${seed}:${JSON.stringify(params)}:${JSON.stringify(naming)}`;
+  const generated = useMemo<Built | null>(() => {
     try {
       setError("");
       return kind.build({ ...params, ...naming, seed });
@@ -68,7 +71,25 @@ export function GeneratorStudio({ onClose, onSend, initial, preset, from }: {
       setError(String((e as Error).message ?? e));
       return null;
     }
-  }, [kind.id, JSON.stringify(params), JSON.stringify(naming), seed]);
+  }, [genKey]);
+
+  // Edição à mão (masmorra): pilha de versões do mapa gerado; vale enquanto for o mesmo mapa
+  const [editing, setEditing] = useState(false);
+  const [edits, setEdits] = useState<{ key: string; stack: Dungeon[] } | null>(null);
+  const stack = edits?.key === genKey ? edits.stack : [];
+  const edited = stack[stack.length - 1] ?? null;
+  const built = useMemo(() => (edited && generated?.editable ? generated.editable.rebuild(edited) : generated), [generated, edited]);
+  const editor = useDungeonEditor(
+    editing && generated?.editable ? edited ?? generated.editable.dungeon : null,
+    (next) => setEdits({ key: genKey, stack: [...stack.slice(-49), next] }),
+    stack.length ? () => setEdits({ key: genKey, stack: stack.slice(0, -1) }) : null,
+    () => setEdits(null),
+  );
+  /** Gerar outro / mudar parâmetros descarta as edições: confirma antes. */
+  const guard = (fn: () => void) => {
+    if (edited && !confirm("Gerar de novo descarta as edições deste mapa. Continuar?")) return;
+    fn();
+  };
 
   const here = (): WorldLink => ({ kind: kind.id, seed, params: { ...params, ...naming }, label: built?.title ?? kind.label });
   const go = (link: WorldLink, nextTrail: WorldLink[]) => {
@@ -80,7 +101,7 @@ export function GeneratorStudio({ onClose, onSend, initial, preset, from }: {
   };
 
   const setParam = (key: string, value: unknown) =>
-    setAllParams((all) => ({ ...all, [kind.id]: { ...(all[kind.id] ?? {}), [key]: value } }));
+    guard(() => setAllParams((all) => ({ ...all, [kind.id]: { ...(all[kind.id] ?? {}), [key]: value } })));
 
   const download = async () => {
     if (!built) return;
@@ -146,8 +167,8 @@ export function GeneratorStudio({ onClose, onSend, initial, preset, from }: {
           <label className="field">
             <span>Semente</span>
             <div className="row">
-              <input className="input mono" value={seed} onChange={(e) => setSeed(e.target.value)} />
-              <button className="icon-btn" title="Nova semente" onClick={() => setSeed(randomSeed())}><Icon name="refresh" /></button>
+              <input className="input mono" value={seed} onChange={(e) => guard(() => setSeed(e.target.value))} />
+              <button className="icon-btn" title="Nova semente" onClick={() => guard(() => setSeed(randomSeed()))}><Icon name="refresh" /></button>
             </div>
           </label>
           {kind.params.map((pd) => {
@@ -176,7 +197,17 @@ export function GeneratorStudio({ onClose, onSend, initial, preset, from }: {
               </label>
             );
           })}
-          <button className="btn primary" onClick={() => setSeed(randomSeed())}><Icon name="sparkles" size={16} /> Gerar outro</button>
+          <button className="btn primary" onClick={() => guard(() => setSeed(randomSeed()))}><Icon name="sparkles" size={16} /> Gerar outro</button>
+          {generated?.editable && (
+            <>
+              <div className="sep" />
+              <label className="check">
+                <input type="checkbox" checked={editing} onChange={(e) => setEditing(e.target.checked)} /> <b>Editar mapa</b>
+                {edited && <span className="small muted">({stack.length} {stack.length === 1 ? "edição" : "edições"})</span>}
+              </label>
+              {editor.panel}
+            </>
+          )}
           <div className="sep" />
           <label className="check small"><input type="checkbox" checked={gmPreview} onChange={(e) => setGmPreview(e.target.checked)} /> Mostrar números e segredos</label>
           <button className="btn" onClick={download} disabled={!built || !!busy}><Icon name="download" size={16} /> Baixar PNG</button>
@@ -204,7 +235,7 @@ export function GeneratorStudio({ onClose, onSend, initial, preset, from }: {
           {error && <span className="error-text">{error}</span>}
         </div>
       </div>
-      <Preview built={built} gm={gmPreview} onOpen={(l) => go(l, [...trail, here()])} />
+      <Preview built={built} gm={gmPreview} fitKey={genKey} editor={editor.layer} onOpen={(l) => go(l, [...trail, here()])} />
       <div className="studio-notes">
         {built?.links?.length ? <p className="small muted" style={{ fontFamily: "system-ui", marginTop: 0 }}>Clique nos círculos dourados do mapa para abrir o lugar.</p> : null}
         {built ? <Notes built={built} /> : null}
@@ -230,12 +261,16 @@ function Notes({ built }: { built: Built }) {
   );
 }
 
-function Preview({ built, gm, onOpen }: { built: Built | null; gm: boolean; onOpen: (l: WorldLink) => void }) {
+function Preview({ built, gm, fitKey, editor, onOpen }: {
+  built: Built | null; gm: boolean; fitKey: string; editor: EditorLayer | null; onOpen: (l: WorldLink) => void;
+}) {
   const host = useRef<HTMLDivElement>(null);
   const [view, setView] = useState({ x: 0, y: 0, z: 1 });
   const [cell, setCell] = useState(0);
   const cvRef = useRef<HTMLCanvasElement | null>(null);
   const drag = useRef<{ sx: number; sy: number; vx: number; vy: number } | null>(null);
+  const editing = useRef(false); // o arrasto atual é do editor (não move a vista)
+  const fitted = useRef("");
 
   useEffect(() => {
     const el = host.current;
@@ -244,12 +279,21 @@ function Preview({ built, gm, onOpen }: { built: Built | null; gm: boolean; onOp
     const cv = built.render(cell, gm);
     setCell(cell);
     cvRef.current?.remove();
-    el.appendChild(cv);
+    el.prepend(cv);
     cvRef.current = cv;
+    // editar a masmorra redesenha o mapa sem mexer no zoom (só reenquadra num mapa novo ou de outro tamanho)
+    const key = `${fitKey}:${cv.width}x${cv.height}`;
+    if (fitted.current === key) return;
+    fitted.current = key;
     const r = el.getBoundingClientRect();
     const z = Math.min((r.width - 40) / cv.width, (r.height - 40) / cv.height, 2);
     setView({ z, x: (r.width - cv.width * z) / 2, y: (r.height - cv.height * z) / 2 });
   }, [built, gm]);
+
+  const toCell = (e: React.PointerEvent) => {
+    const r = host.current!.getBoundingClientRect();
+    return { x: (e.clientX - r.left - view.x) / (view.z * cell), y: (e.clientY - r.top - view.y) / (view.z * cell) };
+  };
 
   useEffect(() => {
     const cv = cvRef.current;
@@ -276,18 +320,34 @@ function Preview({ built, gm, onOpen }: { built: Built | null; gm: boolean; onOp
     <div
       className="studio-view"
       ref={host}
+      style={editor ? { cursor: editor.cursor } : undefined}
       onPointerDown={(e) => {
         (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+        if (editor && e.button === 0 && cell && editor.down(toCell(e))) {
+          editing.current = true;
+          return;
+        }
         drag.current = { sx: e.clientX, sy: e.clientY, vx: view.x, vy: view.y };
       }}
       onPointerMove={(e) => {
+        if (editing.current) return editor?.move(toCell(e));
         const d = drag.current;
         if (d) setView((v) => ({ ...v, x: d.vx + e.clientX - d.sx, y: d.vy + e.clientY - d.sy }));
       }}
-      onPointerUp={() => {
+      onPointerUp={(e) => {
+        if (editing.current) editor?.up(toCell(e));
+        editing.current = false;
         drag.current = null;
       }}
     >
+      {editor && built && cell > 0 && (
+        <svg
+          className="gen-overlay" width={built.cols * cell} height={built.rows * cell}
+          style={{ transform: `translate(${view.x}px, ${view.y}px) scale(${view.z})` }}
+        >
+          {editor.overlay(cell)}
+        </svg>
+      )}
       {cell > 0 && built?.links?.map((l, i) => (
         <button
           key={i}

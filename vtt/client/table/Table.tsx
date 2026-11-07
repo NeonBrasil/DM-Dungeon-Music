@@ -16,6 +16,9 @@ import { sendToTable } from "../gen/sendToTable.ts";
 import { Journal } from "../sheets/Journal.tsx";
 import { SheetWindow } from "../sheets/SheetWindow.tsx";
 import { HandoutWindow } from "../sheets/HandoutWindow.tsx";
+import { NightfallCreator } from "../nightfall/Creator.tsx";
+import { AttackWindow } from "./AttackWindow.tsx";
+import { FightPanel } from "./FightPanel.tsx";
 import { TemplateEditor } from "../sheets/TemplateEditor.tsx";
 import { Jukebox } from "../audio/Jukebox.tsx";
 import { Compendium, SrdWindow } from "../compendium/Compendium.tsx";
@@ -80,6 +83,7 @@ export function Table() {
   }, []);
   const handouts = ui.use((s) => s.handouts);
   const srd = ui.use((s) => s.srd);
+  const nightfall = ui.use((s) => s.nightfall);
   useDiceWatcher();
   return (
     <div className="table">
@@ -98,12 +102,15 @@ export function Table() {
       </div>
       <Sidebar />
       <TurnTracker />
+      <FightPanel />
+      <AttackWindow />
       {sheets.map((id) => <SheetWindow key={id} id={id} />)}
       {handouts.map((id) => <HandoutWindow key={id} id={id} />)}
       {srd.map((k) => <SrdWindow key={k} k={k} />)}
       <TemplateEditor />
       <Toasts />
       <QueryModal />
+      {nightfall && <NightfallCreator id={nightfall.id} initial={nightfall.initial} onClose={() => ui.set({ nightfall: null })} />}
       {generator && <GeneratorStudio initial={generator} preset={genPreset} from={genPreset ? viewPage?.source : null} onClose={() => ui.set({ generator: null, genPreset: null })} onSend={sendToTable} />}
     </div>
   );

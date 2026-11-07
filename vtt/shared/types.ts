@@ -20,7 +20,10 @@ export interface Settings {
   name: string;
   playerPageId: string | null;
   diagonal: "dnd" | "alt" | "euclid"; // contagem de diagonais da régua
-  turns: { entries: TurnEntry[]; current: number; round: number; open: boolean };
+  turns: {
+    entries: TurnEntry[]; current: number; round: number; open: boolean;
+    spent?: { at: string; what: string }; // turno gasto ("rodada:id da entrada") por um consumível de turno inteiro
+  };
   gmMacros?: Macro[];    // só o mestre recebe
 }
 
@@ -40,6 +43,7 @@ export interface DoorSeg {
   locked?: boolean;      // jogadores não abrem
   secret?: boolean;      // jogadores não veem a porta (é parede até o mestre abrir)
   seeThrough?: boolean;  // grade levadiça: bloqueia passagem, não a visão
+  seal?: "magic" | "puzzle"; // selada por magia ou por enigma: jogadores não abrem
 }
 
 export type WeatherType = "none" | "rain" | "storm" | "snow" | "fog" | "embers" | "ash" | "leaves" | "sand";
@@ -151,6 +155,7 @@ export interface SheetField {
   columns?: SheetField[]; // list: colunas de cada linha
   hint?: string;         // dica curta (ex.: "só treinada")
   bonus?: boolean;       // skill d20: mostra campo editável `${id}_bonus` (ex.: aptidão da vocação)
+  consume?: boolean;     // roll numa lista: botão "Consumir" (gasta 1 da linha e o efeito restaura um recurso: PV, mana…)
 }
 
 export interface SheetSection {

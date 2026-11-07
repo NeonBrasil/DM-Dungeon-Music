@@ -32,7 +32,9 @@ export async function sendToTable(b: Built, o: SendOptions) {
     fogOn: o.fog && !!b.rooms,
     fog: "",
     walls: b.walls?.map((v) => Math.round(v * GS * 10) / 10),
-    doors: b.doors?.map((d) => ({ id: newId(8), x1: d.x1 * GS, y1: d.y1 * GS, x2: d.x2 * GS, y2: d.y2 * GS, open: false, locked: d.locked, secret: d.secret, seeThrough: d.seeThrough })),
+    doors: b.doors?.map((d) => ({
+      id: newId(8), x1: d.x1 * GS, y1: d.y1 * GS, x2: d.x2 * GS, y2: d.y2 * GS, open: !!d.open, locked: d.locked, secret: d.secret, seeThrough: d.seeThrough, seal: d.seal,
+    })),
     light: b.walls ? { on: o.light, global: false, explore: true } : undefined,
     rooms: b.rooms,
     source: o.source,

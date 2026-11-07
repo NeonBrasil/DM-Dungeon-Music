@@ -253,12 +253,12 @@ function MonsterBlock({ m, sys }: { m: Monster; sys: CompSystem }) {
   );
 }
 
-/** Arma (tem atributo) vira linha de ataque; o resto vai para o campo de equipamento. */
+/** Arma (tem atributo) vira linha de ataque; poção/medpac vai para os consumíveis; o resto, para o equipamento. */
 function ItemBlock({ it }: { it: Item }) {
   const characters = useColl("characters");
   const templates = useColl("templates");
   const weapon = !!(it.abil && it.dmg);
-  const field = weapon ? "attacks" : "equipment";
+  const field = weapon ? "attacks" : it.use ? "consumiveis" : "equipment";
   const has = (c: Character) => findTemplate(c.template, templates).sections.some((s) => s.fields.some((f) => f.id === field));
   const targets = useMemo(() => Object.values(characters).filter(has).sort((a, b) => a.name.localeCompare(b.name)), [characters, templates, field]);
   const [target, setTarget] = useState("");
@@ -275,6 +275,14 @@ function ItemBlock({ it }: { it: Item }) {
       const mod = `@{${it.abil}_mod}`;
       const rows = (ch.data.attacks as Record<string, unknown>[] | undefined) ?? [];
       api.update("characters", ch.id, { "data.attacks": [...rows, { name: it.name, atk: `${mod} + @{pb}`, dmg: `${it.dmg} + ${mod}`, kind: it.dmgType ?? "" }] });
+    } else if (it.use) {
+      // mesmo item já na lista: soma 1 na quantidade
+      const rows = (ch.data.consumiveis as Record<string, unknown>[] | undefined) ?? [];
+      const i = rows.findIndex((r) => String(r.name ?? "").toLowerCase() === it.name.toLowerCase());
+      const next = i >= 0
+        ? rows.map((r, k) => (k === i ? { ...r, qtd: (Number(r.qtd) || 0) + 1 } : r))
+        : [...rows, { name: it.name, qtd: 1, efeito: it.use.expr, recurso: it.use.res, uso: it.use.turn }];
+      api.update("characters", ch.id, { "data.consumiveis": next });
     } else {
       const prev = String(ch.data.equipment ?? "").trimEnd();
       const entry = it.ac ? `${it.name} (CA ${it.ac})` : it.name;
@@ -292,6 +300,8 @@ function ItemBlock({ it }: { it: Item }) {
       <i>{[it.sub ?? it.cat, it.rarity].filter(Boolean).join(", ")}</i>
       <hr />
       {it.dmg && <div><b>{weapon ? "Dano" : "Efeito"}</b> {it.dmg}{it.dmgType ? ` ${it.dmgType}` : ""}</div>}
+      {it.use && <div><b>Recupera</b> {it.use.expr} {it.use.res === "PV" ? "PV" : "de mana"} (botão Consumir na ficha)</div>}
+      {it.use && <div><b>Uso</b> {it.use.turn}</div>}
       {it.ac && <div><b>Classe de armadura</b> {it.ac}</div>}
       {it.props && <div><b>Propriedades</b> {it.props}</div>}
       {it.cost && <div><b>Preço</b> {it.cost}</div>}
@@ -307,10 +317,10 @@ function ItemBlock({ it }: { it: Item }) {
           <select className="input small" style={{ width: "auto" }} value={target || targets[0].id} onChange={(e) => setTarget(e.target.value)}>
             {targets.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
           </select>
-          <button className="btn small primary" onClick={give}>{weapon ? "Dar como ataque" : "Pôr no equipamento"}</button>
+          <button className="btn small primary" onClick={give}>{weapon ? "Dar como ataque" : it.use ? "Dar ao personagem" : "Pôr no equipamento"}</button>
         </div>
       ) : (
-        <span className="small muted">Nenhuma ficha com {weapon ? "ataques" : "campo de equipamento"} (D&amp;D 5e ou SW5e).</span>
+        <span className="small muted">Nenhuma ficha com {weapon ? "ataques" : it.use ? "consumíveis" : "campo de equipamento"}{it.use ? "" : " (D&D 5e ou SW5e)"}.</span>
       )}
     </div>
   );

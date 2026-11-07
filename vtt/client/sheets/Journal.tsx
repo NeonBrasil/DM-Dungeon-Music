@@ -35,10 +35,10 @@ export function Journal() {
     <div className="side-scroll">
       <div className="row">
         <h4 className="section-title grow" style={{ margin: 0 }}>Fichas</h4>
-        <button className="btn small" title="Importar ficha ou modelo (.json) ou ficha do criador SW (.html)" onClick={() => importRef.current?.click()}><Icon name="upload" size={14} /></button>
+        <button className="btn small" title="Importar ficha ou modelo (.json), ficha do criador SW (.html) ou do criador antigo do Nightfall (.html/.txt)" onClick={() => importRef.current?.click()}><Icon name="upload" size={14} /></button>
         <button className="btn small primary" onClick={() => setCreating(true)}><Icon name="plus" size={14} /> Nova ficha</button>
         <input
-          ref={importRef} type="file" accept=".json,application/json,.html,.htm,text/html" hidden
+          ref={importRef} type="file" accept=".json,application/json,.html,.htm,text/html,.txt,text/plain" hidden
           onChange={async (e) => {
             const f = e.target.files?.[0];
             e.target.value = "";
@@ -123,6 +123,12 @@ function NewCharacter({ onClose }: { onClose: () => void }) {
     const t = findTemplate(tpl, templates);
     const id = newId();
     localStorage.setItem("dm.lastTemplate", t.id);
+    if (t.id === "nightfall") {
+      // Nightfall tem criador próprio (raça, classe, atributos…); ele cria a ficha no final
+      ui.set({ nightfall: { initial: { nome: name.trim(), avatar } } });
+      onClose();
+      return;
+    }
     api.create("characters", {
       id, name: name.trim() || "Novo personagem", template: t.id, data: defaultData(t),
       controlledBy: role === "gm" ? [] : [playerId!], shared: false, ...(avatar ? { avatar } : {}),
@@ -168,7 +174,7 @@ function NewCharacter({ onClose }: { onClose: () => void }) {
       </label>
       <div className="row">
         <span className="grow small muted">{role === "gm" ? "Fichas do mestre começam ocultas; marque os donos depois." : "A ficha será sua."}</span>
-        <button className="btn primary" disabled={uploading} onClick={create}>Criar</button>
+        <button className="btn primary" disabled={uploading} onClick={create}>{tpl === "nightfall" ? "Abrir criador" : "Criar"}</button>
       </div>
     </Modal>
   );
